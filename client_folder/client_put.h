@@ -19,36 +19,13 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
     int noTearDownACK = 1;
     
     while(noTearDownACK){
-
-        /* Send chunks from base up to window size */
-        while(seqNumber <= numOfSegments && (seqNumber - base) <= windowSize){
-            
-            lseek(fd, seqNumber * chunkSize, SEEK_SET);
-            
+        
+        if (dataBufferSize == 0){
             struct segmentPacket dataPacket;
-
-            if(seqNumber == numOfSegments){
-                /* Reached end, create terminal packet */
-                dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
-                printf("Sending Terminal Packet\n");
-                
-                if (close(fd) < 0){
-                    printf("close error\n");
-                    exit(-1);
-                }
-            } else {
-                /* Create FIRST Data Packet Struct */
-                char seg_data[chunkSize];
-                
-                memset(seg_data, 0, sizeof(seg_data));
-                
-                read(fd,seg_data,chunkSize);
-
-                dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
-                printf("Sending Packet: %d\n", seqNumber);
-            }
-
-            /* Send the constructed data packet to the receiver */
+            char seg_data[chunkSize];
+            memset(seg_data, 0, sizeof(seg_data));
+            dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
+            printf("Empty file\nSending Terminal Packet\n");
             if (sendto(sockfd,
                        &dataPacket,
                        sizeof(dataPacket),
@@ -57,9 +34,44 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                        sizeof(cl_addr)) != sizeof(dataPacket)){
                 DieWithError("sendto() sent a different number of bytes than expected");
             }
-            seqNumber++;
-        }
+        } else {
+            
+            /* Send chunks from base up to window size */
+            while(seqNumber <= numOfSegments && (seqNumber - base) <= windowSize){
+                
+                lseek(fd, seqNumber * chunkSize, SEEK_SET);
+                
+                struct segmentPacket dataPacket;
 
+                if(seqNumber == numOfSegments){
+                    /* Reached end, create terminal packet */
+                    dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
+                    printf("Sending Terminal Packet\n");
+                    
+                } else {
+                    /* Create FIRST Data Packet Struct */
+                    char seg_data[chunkSize];
+                    
+                    memset(seg_data, 0, sizeof(seg_data));
+                    
+                    read(fd,seg_data,chunkSize);
+
+                    dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
+                    printf("Sending Packet: %d\n", seqNumber);
+                }
+
+                /* Send the constructed data packet to the receiver */
+                if (sendto(sockfd,
+                           &dataPacket,
+                           sizeof(dataPacket),
+                           0,
+                           (struct sockaddr *) &cl_addr,
+                           sizeof(cl_addr)) != sizeof(dataPacket)){
+                    DieWithError("sendto() sent a different number of bytes than expected");
+                }
+                seqNumber++;
+            }
+        }
 
         /* Set Timer */
         alarm(TIMEOUT_SECS);        /* Set the timeout */
@@ -91,39 +103,57 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                     
                     // RITRASMISSIONE
                     
-                    lseek(fd, seqNumber * chunkSize, SEEK_SET);
+                    if (dataBufferSize == 0){
                     
-                    while(seqNumber <= numOfSegments && (seqNumber - base) <= windowSize){
+                        char seg_data[chunkSize];
+                        memset(seg_data, 0, sizeof(seg_data));
                         struct segmentPacket dataPacket;
-
-                        if(seqNumber == numOfSegments){
-                            /* Reached end, create terminal packet */
-                            dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
-                            printf("Sending Terminal Packet\n");
-                        } else {
-                            /* Create Data Packet Struct */
-                            char seg_data[chunkSize];
-                            
-                            memset(seg_data, 0, sizeof(seg_data));
-                            
-                            read(fd,seg_data,chunkSize);
-
-                            dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
-                            printf("Sending Packet: %d\n", seqNumber);
-                        }
-
-                        /* Send the constructed data packet to the receiver */
+                        dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
+                        printf("Empty file\nSending Terminal Packet\n");
                         if (sendto(sockfd,
-                                   &dataPacket,
-                                   sizeof(dataPacket),
-                                   0,
-                                   (struct sockaddr *) &cl_addr,
-                                   sizeof(cl_addr)) != sizeof(dataPacket)){
-                            DieWithError("sendto() sent a different number of bytes than expected");
+                               &dataPacket,
+                               sizeof(dataPacket),
+                               0,
+                               (struct sockaddr *) &cl_addr,
+                               sizeof(cl_addr)) != sizeof(dataPacket)){
+                        DieWithError("sendto() sent a different number of bytes than expected");
                         }
-                        seqNumber++;
+                    } else {
+                        
+                        lseek(fd, seqNumber * chunkSize, SEEK_SET);
+                        
+                        while(seqNumber <= numOfSegments && (seqNumber - base) <= windowSize){
+                            struct segmentPacket dataPacket;
+
+                            if(seqNumber == numOfSegments){
+                                /* Reached end, create terminal packet */
+                                dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
+                                printf("Sending Terminal Packet\n");
+                            } else {
+                                /* Create Data Packet Struct */
+                                char seg_data[chunkSize];
+                                
+                                memset(seg_data, 0, sizeof(seg_data));
+                                
+                                read(fd,seg_data,chunkSize);
+
+                                dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
+                                printf("Sending Packet: %d\n", seqNumber);
+                            }
+
+                            /* Send the constructed data packet to the receiver */
+                            if (sendto(sockfd,
+                                       &dataPacket,
+                                       sizeof(dataPacket),
+                                       0,
+                                       (struct sockaddr *) &cl_addr,
+                                       sizeof(cl_addr)) != sizeof(dataPacket)){
+                                DieWithError("sendto() sent a different number of bytes than expected");
+                            }
+                            seqNumber++;
+                        }
+                        alarm(TIMEOUT_SECS);
                     }
-                    alarm(TIMEOUT_SECS);
                 }
                 tries++;
             } else {

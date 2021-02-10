@@ -78,10 +78,10 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
                       chunkSize,
                       windowSize,
                       loss_rate)){
-            printf("gettFile error\n");
+            printf("listFiles error\n");
             fflush(stdout);
         } else {
-            printf("getFile andato a buon fine!\n");
+            printf("listFiles succeeded!\n");
             fflush(stdout);
             kill(getpid(), SIGKILL);
         }
@@ -89,7 +89,25 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
     
     // GET
     if (strcmp(command,"get") == 0){
-        
+        if (getFile(fd,
+                    sockfd,
+                    cl_addr,
+                    cl_addr_size,
+                    cl_pid,
+                    chunkSize,
+                    windowSize,
+                    loss_rate)){
+            printf("getFile error\n");
+            fflush(stdout);
+        } else {
+            printf("file downloaded!\n");
+            fflush(stdout);
+        }
+        if (close(fd) < 0){
+            printf("close error\n");
+            exit(-1);
+        }
+        kill(getpid(), SIGKILL);
     }
     
     // PUT
@@ -150,7 +168,11 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
                     cl_pid,
                     srv_pid) == 0){
             printf("File sent\n");
-            kill(getpid(), SIGKILL);
         }
+        if (close(fd) < 0){
+            printf("close error\n");
+            exit(-1);
+        }
+        kill(getpid(), SIGKILL);
     }
 }

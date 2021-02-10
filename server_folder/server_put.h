@@ -1,9 +1,8 @@
 int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, int windowSize, float loss_rate){
     
+    printf("------------------------------------  Sending requestACK\n");
     struct ACKPacket requestAck;
-    
     requestAck = createACKPacket(1, 0, cl_pid, srv_pid);
-    
     // invio ACK con type 1
     if (sendto(sockfd,
                &requestAck,
@@ -49,8 +48,13 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
             /* Add random packet lose, if lost dont process */
             if(!is_lost(loss_rate)){
                 
-                /* If seq is zero start new data collection*/
-                if(dataPacket.seq_no == 0 && dataPacket.type == 1){
+                if (dataPacket.type == 2){
+                    
+                    printf("Recieved an Empty file\n");
+                    base = -1;
+                    ack = createACKPacket(8, base, cl_pid, srv_pid);
+                    
+                } else if (dataPacket.seq_no == 0 && dataPacket.type == 1){
                     
                     printf("Recieved Initial Packet\n");
                     
@@ -111,10 +115,6 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
 
                 /* if data packet is terminal packet, display and clear the recieved message */
                 if(dataPacket.type == 4 && base == -1){
-                    if (close(fd) < 0){
-                        printf("close error\n");
-                        exit(-1);
-                    }
                     return 0;
                 }
             } else {

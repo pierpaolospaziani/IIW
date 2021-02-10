@@ -190,7 +190,7 @@ redo1:
                 printf("\n Your file has been requested!\n");
                 fflush(stdout);
                 
-                fd = open(directoryFile, O_WRONLY | O_CREAT);
+                fd = open(directoryFile, O_WRONLY | O_CREAT, 0666);
                 
                 if (fd == -1){
                     printf(" open error\n");

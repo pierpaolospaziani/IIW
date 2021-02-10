@@ -57,7 +57,63 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
         printf("\n Operation:   get\n");
         fflush(stdout);
         
-        //getFile(sockfd, getFileName(msg), addr_con, addrlen);
+        char fileName[strlen(requestPck.data) - 4];
+        memset(fileName, 0, sizeof(fileName));
+        
+        strncpy(fileName, requestPck.data + 4, strlen(requestPck.data) - 5);
+        
+        char directoryFile[strlen(directory) + strlen(fileName) + 1];
+        memset(directoryFile, 0, sizeof(directoryFile));
+        
+        snprintf(directoryFile, sizeof directoryFile, "%s%s", directory, fileName);
+        
+        // se il file esiste
+        if (access(directoryFile, F_OK) == 0) {
+            
+            int fd = open(directoryFile, O_RDONLY);
+            if (fd == -1){
+                printf(" open error\n");
+                fflush(stdout);
+            }
+            
+            if (getFile(fd,
+                        sockfd,
+                        cl_addr,
+                        cl_addr_len,
+                        chunkSize,
+                        windowSize,
+                        cl_pid,
+                        srv_pid) == 0){
+                printf("File sent\n");
+            }
+            if (close(fd) < 0){
+                printf("close error\n");
+                exit(-1);
+            }
+            kill(getpid(), SIGKILL);
+            
+        // se il file NON esiste
+        } else {
+            
+            printf("\n The required file doesn't exist!\n");
+            fflush(stdout);
+            
+            struct ACKPacket ack;
+            
+            ack = createACKPacket(3, 0, cl_pid, srv_pid);
+            
+            // invio ACK con type 3
+            if (sendto(sockfd,
+                       &ack,
+                       sizeof(ack),
+                       0,
+                       (struct sockaddr*)&cl_addr,
+                       cl_addr_len) < 0) {
+                perror("errore in sendto");
+                exit(1);
+            }
+            kill(getpid(), SIGKILL);
+        }
         
     // PUT
     } else if (requestPck.data[0] == 'p'){
@@ -108,8 +164,6 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                 fflush(stdout);
             }
             
-            printf("------------------------------------  Sending requestACK\n");
-            
             if (putFile(fd,
                         sockfd,
                         cl_addr,
@@ -121,13 +175,16 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         loss_rate)){
                 printf("putFile error\n");
                 fflush(stdout);
-                
                 remove(directoryFile);
             } else {
                 printf("putFile andato a buon fine!\n");
                 fflush(stdout);
-                kill(getpid(), SIGKILL);
             }
+            if (close(fd) < 0){
+                printf("close error\n");
+                exit(-1);
+            }
+            kill(getpid(), SIGKILL);
         }
     }
 }
