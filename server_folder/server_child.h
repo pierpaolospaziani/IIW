@@ -83,7 +83,8 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         chunkSize,
                         windowSize,
                         cl_pid,
-                        srv_pid) == 0){
+                        srv_pid,
+                        loss_rate) == 0){
                 printf("File sent\n");
             }
             if (close(fd) < 0){

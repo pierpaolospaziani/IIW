@@ -67,7 +67,9 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
         exit(1);
     }
     
-    alarm(TIMEOUT_SECS);
+    clock_t startTimer = clock();
+    
+    //alarm(TIMEOUT_SECS);      SERVE SOLO CHE NON LO INTERROMPEVO DOPO E DAVA ERRORE CON GET
     
     // LIST
     if (strcmp(command,"list") == 0){
@@ -131,6 +133,10 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
             
             if (requestACK.cl_pid == cl_pid){
                 
+                clock_t endTimer = clock() - startTimer;
+                double timer = (double) endTimer / 1000000;
+                printf("timer: %f\n\n", timer);
+                
                 if (recvfrom(sockfd,
                              &requestACK,
                              sizeof(requestACK),
@@ -166,7 +172,8 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
                     chunkSize,
                     windowSize,
                     cl_pid,
-                    srv_pid) == 0){
+                    srv_pid,
+                    loss_rate) == 0){
             printf("File sent\n");
         }
         if (close(fd) < 0){

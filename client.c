@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <time.h>
 
 #define DATALIMIT 511
 
@@ -79,7 +80,7 @@ void sig_chld_handler(int signum){
 int main(int argc, char *argv[]) {
     
     if (argc < 3 || argc > 4){
-        fprintf(stderr,"Usage: %s <Chunk Size> <Window Size> <Loss Rate>\n Loss Rate is optional, if not specified is set to 0\n You gave %d Arguments\n", argv[0], argc);
+        fprintf(stderr," Usage: %s <Chunk Size> <Window Size> <Loss Rate>\n Loss Rate is optional, if not specified is set to 0\n You gave %d Arguments\n", argv[0], argc);
         exit(1);
     }
     

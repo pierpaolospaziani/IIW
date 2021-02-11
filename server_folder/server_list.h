@@ -50,16 +50,20 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
             struct segmentPacket dataPacket;
             dataPacket = createTerminalPacket(num, cl_pid, srv_pid);
             
-            alarm(TIMEOUT_SECS);
-            
-            if (sendto(sockfd,
-                       &dataPacket,
-                       sizeof(dataPacket),
-                       0,
-                       (struct sockaddr *) &cli_addr,
-                       sizeof(cli_addr)) != sizeof(dataPacket)){
-                DieWithError("sendto() sent a different number of bytes than expected");
+            if(!is_lost(loss_rate)){
+                if (sendto(sockfd,
+                           &dataPacket,
+                           sizeof(dataPacket),
+                           0,
+                           (struct sockaddr *) &cli_addr,
+                           sizeof(cli_addr)) != sizeof(dataPacket)){
+                    DieWithError("sendto() sent a different number of bytes than expected");
+                }
+            } else {
+                printf("SIMULATED LOSE\n");
             }
+            
+            alarm(TIMEOUT_SECS);
             
             struct ACKPacket ack;
             while (recvfrom(sockfd,
@@ -126,13 +130,17 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                         printf("Sending Packet: %d\n", seqNumber);
                     }
                     
-                    if (sendto(sockfd,
-                               &dataPacket,
-                               sizeof(dataPacket),
-                               0,
-                               (struct sockaddr *) &cli_addr,
-                               sizeof(cli_addr)) != sizeof(dataPacket)){
-                        DieWithError("sendto() sent a different number of bytes than expected");
+                    if(!is_lost(loss_rate)){
+                        if (sendto(sockfd,
+                                   &dataPacket,
+                                   sizeof(dataPacket),
+                                   0,
+                                   (struct sockaddr *) &cli_addr,
+                                   sizeof(cli_addr)) != sizeof(dataPacket)){
+                            DieWithError("sendto() sent a different number of bytes than expected");
+                        }
+                    } else {
+                        printf("SIMULATED LOSE Packet: %d\n", seqNumber);
                     }
                     seqNumber++;
                 }
@@ -177,13 +185,17 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                                     printf("Sending Packet: %d\n", seqNumber);
                                 }
                                 
-                                if (sendto(sockfd,
-                                           &dataPacket,
-                                           sizeof(dataPacket),
-                                           0,
-                                           (struct sockaddr *) &cli_addr,
-                                           sizeof(cli_addr)) != sizeof(dataPacket)){
-                                    DieWithError("sendto() sent a different number of bytes than expected");
+                                if(!is_lost(loss_rate)){
+                                    if (sendto(sockfd,
+                                               &dataPacket,
+                                               sizeof(dataPacket),
+                                               0,
+                                               (struct sockaddr *) &cli_addr,
+                                               sizeof(cli_addr)) != sizeof(dataPacket)){
+                                        DieWithError("sendto() sent a different number of bytes than expected");
+                                    }
+                                } else {
+                                    printf("SIMULATED LOSE Packet: %d\n", seqNumber);
                                 }
                                 seqNumber++;
                             }

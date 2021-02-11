@@ -1,6 +1,8 @@
-int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr_len, int chunkSize, int windowSize, int cl_pid, int srv_pid){
+int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr_len, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate){
     
     int tries = 0;
+    
+    clock_t before = clock();
     
     /* Calculate number of Segments */
     int dataBufferSize = lseek(fd, 0L, SEEK_END);
@@ -26,13 +28,18 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
             memset(seg_data, 0, sizeof(seg_data));
             dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
             printf("Empty file\nSending Terminal Packet\n");
-            if (sendto(sockfd,
-                       &dataPacket,
-                       sizeof(dataPacket),
-                       0,
-                       (struct sockaddr *) &cl_addr,
-                       sizeof(cl_addr)) != sizeof(dataPacket)){
-                DieWithError("sendto() sent a different number of bytes than expected");
+            
+            if(!is_lost(loss_rate)){
+                if (sendto(sockfd,
+                           &dataPacket,
+                           sizeof(dataPacket),
+                           0,
+                           (struct sockaddr *) &cl_addr,
+                           sizeof(cl_addr)) != sizeof(dataPacket)){
+                    DieWithError("sendto() sent a different number of bytes than expected");
+                }
+            } else {
+                printf("SIMULATED LOSE Packet: %d\n", seqNumber);
             }
         } else {
             
@@ -61,13 +68,17 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                 }
 
                 /* Send the constructed data packet to the receiver */
-                if (sendto(sockfd,
-                           &dataPacket,
-                           sizeof(dataPacket),
-                           0,
-                           (struct sockaddr *) &cl_addr,
-                           sizeof(cl_addr)) != sizeof(dataPacket)){
-                    DieWithError("sendto() sent a different number of bytes than expected");
+                if(!is_lost(loss_rate)){
+                    if (sendto(sockfd,
+                               &dataPacket,
+                               sizeof(dataPacket),
+                               0,
+                               (struct sockaddr *) &cl_addr,
+                               sizeof(cl_addr)) != sizeof(dataPacket)){
+                        DieWithError("sendto() sent a different number of bytes than expected");
+                    }
+                } else {
+                    printf("SIMULATED LOSE Packet: %d\n", seqNumber);
                 }
                 seqNumber++;
             }
@@ -110,13 +121,17 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                         struct segmentPacket dataPacket;
                         dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
                         printf("Empty file\nSending Terminal Packet\n");
-                        if (sendto(sockfd,
-                               &dataPacket,
-                               sizeof(dataPacket),
-                               0,
-                               (struct sockaddr *) &cl_addr,
-                               sizeof(cl_addr)) != sizeof(dataPacket)){
-                        DieWithError("sendto() sent a different number of bytes than expected");
+                        if(!is_lost(loss_rate)){
+                            if (sendto(sockfd,
+                                       &dataPacket,
+                                       sizeof(dataPacket),
+                                       0,
+                                       (struct sockaddr *) &cl_addr,
+                                       sizeof(cl_addr)) != sizeof(dataPacket)){
+                                DieWithError("sendto() sent a different number of bytes than expected");
+                            }
+                        } else {
+                            printf("SIMULATED LOSE Packet: %d\n", seqNumber);
                         }
                     } else {
                         
@@ -142,13 +157,17 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                             }
 
                             /* Send the constructed data packet to the receiver */
-                            if (sendto(sockfd,
-                                       &dataPacket,
-                                       sizeof(dataPacket),
-                                       0,
-                                       (struct sockaddr *) &cl_addr,
-                                       sizeof(cl_addr)) != sizeof(dataPacket)){
-                                DieWithError("sendto() sent a different number of bytes than expected");
+                            if(!is_lost(loss_rate)){
+                                if (sendto(sockfd,
+                                           &dataPacket,
+                                           sizeof(dataPacket),
+                                           0,
+                                           (struct sockaddr *) &cl_addr,
+                                           sizeof(cl_addr)) != sizeof(dataPacket)){
+                                    DieWithError("sendto() sent a different number of bytes than expected");
+                                }
+                            } else {
+                                printf("SIMULATED LOSE Packet: %d\n", seqNumber);
                             }
                             seqNumber++;
                         }
@@ -162,6 +181,8 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
         }
         
         if (ack.srv_pid == srv_pid){
+            
+            //cl_pid = ack.cl_pid;
             
             if (recvfrom(sockfd,
                          &ack,
@@ -191,6 +212,11 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
             tries = 0;
         }
     }
+    
+    clock_t difference = clock() - before;
+    double msec = (double) difference / 1000000;
+    printf("msec: %f\n\n", msec);
+    
     close(sockfd);
     return 0;
 }

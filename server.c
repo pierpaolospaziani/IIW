@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <time.h>
 
 #define IP_ADDRESS "127.0.0.1"
 #define PORT_NO 5193
@@ -55,7 +56,7 @@ int main(int argc, char *argv[]) {
     unsigned int cl_addr_len;
     
     if (argc < 3 || argc > 4){
-        fprintf(stderr,"Usage: %s <Chunk Size> <Window Size> <Loss Rate>\n Loss Rate is optional, if not specified is set to 0\n You gave %d Arguments\n", argv[0], argc);
+        fprintf(stderr," Usage: %s <Chunk Size> <Window Size> <Loss Rate>\n Loss Rate is optional, if not specified is set to 0\n You gave %d Arguments\n", argv[0], argc);
         exit(1);
     }
     
