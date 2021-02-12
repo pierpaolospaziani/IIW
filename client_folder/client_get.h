@@ -37,7 +37,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
             
             if (dataPacket.type == 3){
                 
-                printf(" File not available!\n");
+                printf("File not available!\n");
                 fflush(stdout);
                 return 1;
                 

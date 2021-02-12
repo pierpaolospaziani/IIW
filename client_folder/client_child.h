@@ -14,7 +14,7 @@ void CatchAlarm(int ignored){
     printf("In Alarm\n");
 }
 
-void childFunc(char* inputString, char* command, int fd, int chunkSize, int windowSize, float loss_rate){
+void childFunc(char* inputString, char* command, char* fileName, int fd, int chunkSize, int windowSize, float loss_rate){
     
     struct sigaction myAction;
     myAction.sa_handler = CatchAlarm;
@@ -56,15 +56,18 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
     struct segmentPacket requestPck;
     requestPck = createDataPacket(0, 0, cl_pid, srv_pid, inputString);
     printf("Sending your request\n");
-    
-    if (sendto(sockfd,
-               &requestPck,
-               sizeof(requestPck),
-               0,
-               (struct sockaddr*) &cl_addr,
-               cl_addr_size) != sizeof(requestPck)) {
-        perror("errore in sendto");
-        exit(1);
+    if(!is_lost(loss_rate)){
+        if (sendto(sockfd,
+                   &requestPck,
+                   sizeof(requestPck),
+                   0,
+                   (struct sockaddr*) &cl_addr,
+                   cl_addr_size) != sizeof(requestPck)) {
+            perror("errore in sendto");
+            exit(1);
+        }
+    } else {
+        printf("SIMULATED LOSE\n");
     }
     
     clock_t startTimer = clock();
@@ -99,8 +102,7 @@ void childFunc(char* inputString, char* command, int fd, int chunkSize, int wind
                     chunkSize,
                     windowSize,
                     loss_rate)){
-            printf("getFile error\n");
-            fflush(stdout);
+            remove(fileName);
         } else {
             printf("file downloaded!\n");
             fflush(stdout);

@@ -98,21 +98,45 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
             
             printf("\n The required file doesn't exist!\n");
             fflush(stdout);
-            
-            struct ACKPacket ack;
-            
+            /*
+            struct ACKPacket ack;            // QUESTO DOVREBBE ESSERE UN PACCHETTO
             ack = createACKPacket(3, 0, cl_pid, srv_pid);
             
             // invio ACK con type 3
-            if (sendto(sockfd,
-                       &ack,
-                       sizeof(ack),
-                       0,
-                       (struct sockaddr*)&cl_addr,
-                       cl_addr_len) < 0) {
-                perror("errore in sendto");
-                exit(1);
+            if(!is_lost(loss_rate)){
+                if (sendto(sockfd,
+                           &ack,
+                           sizeof(ack),
+                           0,
+                           (struct sockaddr*)&cl_addr,
+                           cl_addr_len) < 0) {
+                    perror("errore in sendto");
+                    exit(1);
+                }
+            } else {
+                printf("SIMULATED LOSE\n");
+            }*/
+            
+            struct segmentPacket dataPacket;
+            char seg_data[chunkSize];
+            memset(seg_data, 0, sizeof(seg_data));
+            dataPacket = createDataPacket(3, 0, cl_pid, srv_pid, seg_data);
+            
+            // invio ACK con type 3
+            if(!is_lost(loss_rate)){
+                if (sendto(sockfd,
+                           &dataPacket,
+                           sizeof(dataPacket),
+                           0,
+                           (struct sockaddr*)&cl_addr,
+                           cl_addr_len) < 0) {
+                    perror("errore in sendto");
+                    exit(1);
+                }
+            } else {
+                printf("SIMULATED LOSE\n");
             }
+                                                    // MANCA L'ACK QUA (?)
             kill(getpid(), SIGKILL);
         }
         
@@ -141,14 +165,18 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
             ack = createACKPacket(0, 0, cl_pid, srv_pid);
             
             // invio ACK con type 0
-            if (sendto(sockfd,
-                       &ack,
-                       sizeof(ack),
-                       0,
-                       (struct sockaddr*)&cl_addr,
-                       cl_addr_len) < 0) {
-                perror("errore in sendto");
-                exit(1);
+            if(!is_lost(loss_rate)){
+                if (sendto(sockfd,
+                           &ack,
+                           sizeof(ack),
+                           0,
+                           (struct sockaddr*)&cl_addr,
+                           cl_addr_len) < 0) {
+                    perror("errore in sendto");
+                    exit(1);
+                }
+            } else {
+                printf("SIMULATED LOSE\n");
             }
             
             kill(getpid(), SIGKILL);

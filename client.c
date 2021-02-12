@@ -242,6 +242,7 @@ redo1:
         if ((pid = fork()) == 0) {
             childFunc(inputString,
                       command,
+                      fileName,
                       fd,
                       chunkSize,
                       windowSize,
