@@ -72,7 +72,9 @@ void sig_chld_handler(int signum){
     pid_t pid;
 
     while((pid = waitpid(-1, &status, WNOHANG)) > 0){
-        printf(" child %d terminato\n", pid);
+        //printf(" child %d terminato\n", pid);
+        printf("\n Type one of the 3 commands:\n\n> ");
+        fflush(stdout);
     }
     return;
 }
@@ -80,14 +82,14 @@ void sig_chld_handler(int signum){
 int main(int argc, char *argv[]) {
     
     if (argc < 3 || argc > 4){
-        fprintf(stderr," Usage: %s <Chunk Size> <Window Size> <Loss Rate>\n Loss Rate is optional, if not specified is set to 0\n You gave %d Arguments\n", argv[0], argc);
+        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate>\n Loss Rate is optional, if not specified is set to 0.\n You gave %d Argument/s.\n\n", argv[0], argc);
         exit(1);
     }
     
     srand48(2345);
     
     if (signal(SIGCHLD, sig_chld_handler) == SIG_ERR) {
-        fprintf(stderr, "errore in signal");
+        fprintf(stderr, "error in signal");
         exit(1);
     }
     
@@ -119,11 +121,12 @@ int main(int argc, char *argv[]) {
     char command[1024];
     int fd;
     
-    while (1) {
-        
 redo:
-        printf("\n Type one of the 3 commands:\n\n> ");
-        fflush(stdout);
+    
+    printf("\n Type one of the 3 commands:\n\n> ");
+    fflush(stdout);
+    
+    while (1) {
         
         char inputString[1024];
         fgets(inputString, 1024, stdin);
@@ -142,9 +145,7 @@ redo:
         
         // LIST
         if (res == 1){
-            printf("\n The file list has been requested!\n");
-            fflush(stdout);
-            
+        
         // GET
         } else if (res == 2){
             
@@ -161,14 +162,16 @@ redo1:
                 
                 // se si vuole sovrascrivere il file esistente
                 if (strcmp(s,"Y") == 0 || strcmp(s,"y") == 0){
-                    printf("\n Ok, the file will be overwritten!\n\n Your file has been requested!\n");
+                    printf("\n Ok, the file will be overwritten!\n");
                     fflush(stdout);
                     
                     fd = open(directoryFile, O_WRONLY);
                     
                     if (fd == -1){
-                        printf(" Open error\n");
-                        exit(-1);
+                        printf(" File open error, try again..\n");
+                        fflush(stdout);
+                        
+                        goto redo;
                     }
                 
                 // se NON si vuole sovrascrivere il file esistente
@@ -188,15 +191,14 @@ redo1:
                 
             // se il file NON esiste ancora
             } else {
-                printf("\n Your file has been requested!\n");
-                fflush(stdout);
                 
                 fd = open(directoryFile, O_WRONLY | O_CREAT, 0666);
                 
                 if (fd == -1){
-                    printf(" open error\n");
+                    printf(" File open error, try again..\n");
                     fflush(stdout);
-                    exit(-1);
+                    
+                    goto redo;
                 }
             }
             
@@ -209,18 +211,15 @@ redo1:
                 fd = open(directoryFile, O_RDONLY);
                 
                 if (fd == -1){
-                    printf(" File doesn't exist\n");
+                    printf(" File open error, try again..\n");
                     fflush(stdout);
                     
                     goto redo;
                 }
                 
-                printf("\n Your file has been uploaded\n");
-                fflush(stdout);
-                
             // se il file NON esiste
             } else {
-                printf("\n Sorry, file not found..\n");
+                printf("\n Sorry, file not found, try again..\n");
                 fflush(stdout);
                 
                 goto redo;
@@ -242,7 +241,7 @@ redo1:
         if ((pid = fork()) == 0) {
             childFunc(inputString,
                       command,
-                      fileName,
+                      directoryFile,
                       fd,
                       chunkSize,
                       windowSize,

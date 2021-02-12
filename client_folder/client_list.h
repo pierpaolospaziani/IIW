@@ -16,7 +16,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                       (struct sockaddr *) &srv_addr,
                       &srv_addr_len)) < 0){
             if (errno != EINTR){
-                DieWithError("recvfrom() failed 1");
+                DieWithError("recvfrom() failed");
             }
         }
         
@@ -28,7 +28,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                           0,
                           (struct sockaddr *) &srv_addr,
                           &srv_addr_len)) < 0){
-                DieWithError("recvfrom() failed 2");
+                DieWithError("recvfrom() failed");
             }
             
             int srv_pid = dataPacket.srv_pid;
@@ -52,7 +52,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
                 
             } else if (dataPacket.type == 1 && dataPacket.seq_no != base + 1){
-                //printf("Recieved Out of Sync Packet #%d\n", dataPacket.seq_no);
+                //printf(" Recieved Out of Sync Packet #%d\n", dataPacket.seq_no);
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
             }
 
@@ -65,7 +65,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
 
                 /* Send ACK for Packet Recieved */
                 if(base >= 0){
-                    //printf("\n------------------------------------  Sending ACK #%d\n", base);
+                    //printf("\n ------------------------------------  Sending ACK #%d\n", base);
                     if (sendto(sockfd,
                                &ack,
                                sizeof(ack), 0,
@@ -75,7 +75,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                     }
                 } else if (base == -1) {
                     printf("\n");
-                    //printf("\n------------------------------------ Sending Terminal ACK\n");
+                    //printf("\n ------------------------------------ Sending Terminal ACK\n");
                     if (sendto(sockfd,
                                &ack,
                                sizeof(ack),
@@ -91,7 +91,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                     return 0;
                 }
             } else {
-                //printf("SIMULATED LOSE ACK #%d\n", base);
+                //printf(" SIMULATED LOSE ACK #%d\n", base);
             }
         }
     }

@@ -37,26 +37,24 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
             
             if (dataPacket.type == 3){
                 
-                printf("File not available!\n");
-                fflush(stdout);
                 return 1;
                 
             } else if (dataPacket.type == 2){
                 
-                printf("Recieved an Empty file\n");
+                printf(" Recieved an Empty file\n\n");
                 base = -1;
                 ack = createACKPacket(8, base, cl_pid, srv_pid);
                 
             } else if (dataPacket.seq_no == 0 && dataPacket.type == 1){
                 
-                printf("Recieved Initial Packet\n");
+                //printf(" Recieved Initial Packet\n");
                 write(fd, dataPacket.data, chunkSize);
                 base = 0;
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
                 
             } else if (dataPacket.seq_no == base + 1){
                 
-                printf("Recieved Subseqent Packet #%d\n", dataPacket.seq_no);
+                //printf(" Recieved Subseqent Packet #%d\n", dataPacket.seq_no);
                 fflush(stdout);
                 write(fd, dataPacket.data, chunkSize);
                 base = dataPacket.seq_no;
@@ -64,7 +62,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 
             } else if (dataPacket.type == 1 && dataPacket.seq_no != base + 1){
                 
-                printf("Recieved Out of Sync Packet #%d\n", dataPacket.seq_no);
+                //printf(" Recieved Out of Sync Packet #%d\n", dataPacket.seq_no);
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
             }
 
@@ -77,7 +75,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
 
                 /* Send ACK for Packet Recieved */
                 if(base >= 0){
-                    printf("------------------------------------  Sending ACK #%d\n", base);
+                    //printf(" ------------------------------------  Sending ACK #%d\n", base);
                     if (sendto(sockfd,
                                &ack,
                                sizeof(ack), 0,
@@ -86,8 +84,8 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                         DieWithError("sendto() sent a different number of bytes than expected");
                     }
                 } else if (base == -1) {
-                    printf("Recieved Teardown Packet\n");
-                    printf("------------------------------------  Sending Terminal ACK\n");
+                    //printf(" Recieved Last Packet\n");
+                    //printf(" ------------------------------------  Sending Terminal ACK\n");
                     if (sendto(sockfd,
                                &ack,
                                sizeof(ack),
@@ -101,9 +99,12 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 /* if data packet is terminal packet, display and clear the recieved message */
                 if(dataPacket.type == 4 && base == -1){
                     return 0;
+                } else if (dataPacket.type == 2){
+                    return 0;
                 }
+                
             } else {
-                printf("SIMULATED LOSE ACK #%d\n", base);
+                //printf(" SIMULATED LOSE ACK #%d\n", base);
             }
         }
     }

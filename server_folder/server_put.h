@@ -101,7 +101,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                         DieWithError("sendto() sent a different number of bytes than expected");
                     }
                 } else if (base == -1) {
-                    printf("Recieved Teardown Packet\n");
+                    printf("Recieved Last Packet\n");
                     printf("------------------------------------  Sending Terminal ACK\n");
                     if (sendto(sockfd,
                                &ack,
@@ -115,6 +115,8 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
 
                 /* if data packet is terminal packet, display and clear the recieved message */
                 if(dataPacket.type == 4 && base == -1){
+                    return 0;
+                } else if (dataPacket.type == 2){
                     return 0;
                 }
             } else {

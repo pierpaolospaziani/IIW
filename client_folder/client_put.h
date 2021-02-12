@@ -26,7 +26,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
             char seg_data[chunkSize];
             memset(seg_data, 0, sizeof(seg_data));
             dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
-            printf("Empty file\nSending Terminal Packet\n");
+            printf("\n Empty file\n\n Sending Terminal Packet\n");
             
             if(!is_lost(loss_rate)){
                 if (sendto(sockfd,
@@ -38,7 +38,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                     DieWithError("sendto() sent a different number of bytes than expected");
                 }
             } else {
-                printf("SIMULATED LOSE\n");
+                //printf(" SIMULATED LOSE\n");
             }
         } else {
             
@@ -52,7 +52,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 if(seqNumber == numOfSegments){
                     /* Reached end, create terminal packet */
                     dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
-                    printf("Sending Terminal Packet\n");
+                    //printf(" Sending Terminal Packet\n");
                     
                 } else {
                     /* Create FIRST Data Packet Struct */
@@ -63,7 +63,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                     read(fd,seg_data,chunkSize);
 
                     dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
-                    printf("Sending Packet: %d\n", seqNumber);
+                    //printf(" Sending Packet: %d\n", seqNumber);
                 }
 
                 /* Send the constructed data packet to the receiver */
@@ -77,7 +77,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                         DieWithError("sendto() sent a different number of bytes than expected");
                     }
                 } else {
-                    printf("SIMULATED LOSE Packet: %d\n", seqNumber);
+                    //printf(" SIMULATED LOSE Packet: %d\n", seqNumber);
                 }
                 seqNumber++;
             }
@@ -87,7 +87,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
         alarm(TIMEOUT_SECS);        /* Set the timeout */
 
         /* IF window is full alert that it is waiting */
-        printf("Window full: waiting for ACKs\n");
+        //printf(" Window full: waiting for ACKs\n");
 
         /* Listen for ACKs, get highest ACK, reset base */
         struct ACKPacket ack;
@@ -103,10 +103,10 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 /* reset the seqNumber back to one ahead of the last recieved ACK */
                 seqNumber = base + 1;
 
-                printf("Timeout: Resending\n");
+                //printf(" Timeout: Resending\n");
                 
                 if(tries >= MAXTRIES){
-                    printf("Tries exceeded: Closing\n");
+                    printf(" Tries exceeded: Closing\n");
                     exit(1);
                 } else {
                     alarm(0);
@@ -119,7 +119,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                         memset(seg_data, 0, sizeof(seg_data));
                         struct segmentPacket dataPacket;
                         dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
-                        printf("Empty file\nSending Terminal Packet\n");
+                        printf(" Empty file\n Sending Terminal Packet\n");
                         
                         if(!is_lost(loss_rate)){
                             if (sendto(sockfd,
@@ -131,7 +131,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                             DieWithError("sendto() sent a different number of bytes than expected");
                             }
                         } else {
-                            printf("SIMULATED LOSE Packet: %d\n", seqNumber);
+                            //printf(" SIMULATED LOSE Packet: %d\n", seqNumber);
                         }
                     } else {
                         
@@ -143,7 +143,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                             if(seqNumber == numOfSegments){
                                 /* Reached end, create terminal packet */
                                 dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
-                                printf("Sending Terminal Packet\n");
+                                //printf(" Sending Terminal Packet\n");
                             } else {
                                 /* Create Data Packet Struct */
                                 char seg_data[chunkSize];
@@ -153,7 +153,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                                 read(fd,seg_data,chunkSize);
 
                                 dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
-                                printf("Sending Packet: %d\n", seqNumber);
+                                //printf(" Sending Packet: %d\n", seqNumber);
                             }
 
                             /* Send the constructed data packet to the receiver */
@@ -168,7 +168,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                                     DieWithError("sendto() sent a different number of bytes than expected");
                                 }
                             } else {
-                                printf("SIMULATED LOSE Packet: %d\n", seqNumber);
+                                //printf(" SIMULATED LOSE Packet: %d\n", seqNumber);
                             }
                             seqNumber++;
                         }
@@ -196,13 +196,13 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
             
             /* 8 is teardown ack */
             if(ack.type != 8){
-                printf("----------------------- Recieved ACK: %d\n", ack.ack_no);
+                //printf(" ----------------------- Recieved ACK: %d\n", ack.ack_no);
                 if(ack.ack_no > base){
                     /* Advances the sending, reset tries */
                     base = ack.ack_no;
                 }
             } else {
-                printf("----------------------- Recieved Terminal ACK\n");
+                //printf(" ----------------------- Recieved Terminal ACK\n");
                 noTearDownACK = 0;
             }
 

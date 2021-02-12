@@ -11,10 +11,10 @@
 #include "client_put.h"
 
 void CatchAlarm(int ignored){
-    printf("In Alarm\n");
+    printf(" In Alarm\n");
 }
 
-void childFunc(char* inputString, char* command, char* fileName, int fd, int chunkSize, int windowSize, float loss_rate){
+void childFunc(char* inputString, char* command, char* directoryFile, int fd, int chunkSize, int windowSize, float loss_rate){
     
     struct sigaction myAction;
     myAction.sa_handler = CatchAlarm;
@@ -32,7 +32,7 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
     
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0){
-        perror("errore in socket");
+        perror("error in socket");
         exit(1);
     }
     
@@ -46,7 +46,7 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
     cl_addr.sin_family = AF_INET;
     cl_addr.sin_port = htons(PORT_NO);
     if (inet_pton(AF_INET, IP_ADDRESS, &cl_addr.sin_addr) <= 0) {
-        fprintf(stderr, "errore in inet_pton per %s", IP_ADDRESS);
+        fprintf(stderr, "error in inet_pton per %s", IP_ADDRESS);
         exit(1);
     }
     
@@ -55,7 +55,7 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
     /*                   ------------------------------    */
     struct segmentPacket requestPck;
     requestPck = createDataPacket(0, 0, cl_pid, srv_pid, inputString);
-    printf("Sending your request\n");
+    //printf("Sending your request\n");
     if(!is_lost(loss_rate)){
         if (sendto(sockfd,
                    &requestPck,
@@ -76,6 +76,8 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
     
     // LIST
     if (strcmp(command,"list") == 0){
+        printf("\n The file list has been requested ...\n");
+        fflush(stdout);
         if (listFiles(sockfd,
                       cl_addr,
                       cl_addr_size,
@@ -86,7 +88,7 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
             printf("listFiles error\n");
             fflush(stdout);
         } else {
-            printf("listFiles succeeded!\n");
+            printf(" The required list is above!\n");
             fflush(stdout);
             kill(getpid(), SIGKILL);
         }
@@ -94,6 +96,8 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
     
     // GET
     if (strcmp(command,"get") == 0){
+        printf("\n Your file has been requested ...\n\n");
+        fflush(stdout);
         if (getFile(fd,
                     sockfd,
                     cl_addr,
@@ -102,9 +106,11 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
                     chunkSize,
                     windowSize,
                     loss_rate)){
-            remove(fileName);
+            printf(" File not available!\n");
+            fflush(stdout);
+            remove(directoryFile);
         } else {
-            printf("file downloaded!\n");
+            printf(" File downloaded!\n");
             fflush(stdout);
         }
         if (close(fd) < 0){
@@ -116,6 +122,9 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
     
     // PUT
     if (strcmp(command,"put") == 0){
+        
+        printf("\n Trying to upload your file ...\n\n");
+        fflush(stdout);
         
         struct ACKPacket requestACK;
         
@@ -137,7 +146,7 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
                 
                 clock_t endTimer = clock() - startTimer;
                 double timer = (double) endTimer / 1000000;
-                printf("timer: %f\n\n", timer);
+                printf(" Request timer (RTT): %f\n\n", timer);
                 
                 if (recvfrom(sockfd,
                              &requestACK,
@@ -152,10 +161,10 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
                 }
                 
                 if (requestACK.type == 1){
-                    printf("----------------------- Recieved ACK for requestPck\n");
+                    //printf("----------------------- Recieved ACK for requestPck\n");
                     break;
                 } else if (requestACK.type == 0){
-                    printf("----------------------- This file already exist!\n");
+                    printf(" This file already exist!\n");
                     // controlla bene sta cosa che l'ho scritta al volo
                     alarm(0);
                     kill(getpid(), SIGKILL);
@@ -176,7 +185,7 @@ void childFunc(char* inputString, char* command, char* fileName, int fd, int chu
                     cl_pid,
                     srv_pid,
                     loss_rate) == 0){
-            printf("File sent\n");
+            printf(" File sent successfully!\n");
         }
         if (close(fd) < 0){
             printf("close error\n");
