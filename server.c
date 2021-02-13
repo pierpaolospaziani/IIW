@@ -12,7 +12,6 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <errno.h>
-#include <time.h>
 
 #define IP_ADDRESS "127.0.0.1"
 #define PORT_NO 5193
@@ -42,7 +41,7 @@ void sig_chld_handler(int signum){
     pid_t pid;
 
     while((pid = waitpid(-1, &status, WNOHANG)) > 0){
-        printf(" child %d terminato\n", pid);
+        //printf(" child %d terminato\n", pid);
     }
     return;
 }
@@ -55,8 +54,8 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in cli_addr;
     unsigned int cl_addr_len;
     
-    if (argc < 3 || argc > 4){
-        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate>\n Loss Rate is optional, if not specified is set to 0.\n You gave %d Argument/s.\n\n", argv[0], argc);
+    if (argc < 3 || argc > 5){
+        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate> <Timer>\n Loss Rate and Timer are optional, if not specified are set to 0 and 1.\n You gave %d Argument/s.\n\n", argv[0], argc);
         exit(1);
     }
     
@@ -84,6 +83,20 @@ int main(int argc, char *argv[]) {
     
     if (argc == 4){
         loss_rate = atof(argv[3]);
+        if(loss_rate > 1){
+            fprintf(stderr, "Error: Loss Rate must be < 1\n");
+            exit(1);
+        }
+    }
+    
+    int userTimer = 1;
+    
+    if (argc == 5){
+        userTimer = atoi(argv[4]);
+        if(userTimer < 1){
+            fprintf(stderr, "Error: Timer must be > 1\n");
+            exit(1);
+        }
     }
     
     if (signal(SIGCHLD, sig_chld_handler) == SIG_ERR) {
@@ -147,7 +160,8 @@ int main(int argc, char *argv[]) {
                           cl_addr_len,
                           chunkSize,
                           windowSize,
-                          loss_rate);
+                          loss_rate,
+                          userTimer);
             }
         }
     }

@@ -1,4 +1,17 @@
-int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, int cl_pid, int chunkSize, int windowSize, float loss_rate){
+void listAlarm(int ignored){
+    printf(" Timeout");
+}
+
+int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, int cl_pid, int chunkSize, int windowSize, float loss_rate, int timeout){
+    
+    struct sigaction myAction;
+    myAction.sa_handler = listAlarm;
+    if (sigemptyset(&myAction.sa_mask) < 0){
+        DieWithError("sigfillset() failed");
+    }
+    myAction.sa_flags = 0;
+    
+    int tries = 0;
     
     int base = -2;
     int seqNumber = 0;
@@ -17,10 +30,25 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                       &srv_addr_len)) < 0){
             if (errno != EINTR){
                 DieWithError("recvfrom() failed");
+            } else if (errno == EINTR){
+                printf(" %d time/s\n", tries + 1);
+                tries++;
+                if (tries >= MAXTRIES){
+                    printf(" Server is not responding anymore: List failed!\n");
+                    exit(1);
+                }
             }
+            alarm(timeout);
         }
         
         if (dataPacket.cl_pid == cl_pid){
+            
+            alarm(0);
+            tries = 0;
+            
+            if (sigaction(SIGALRM, &myAction, 0) < 0){
+                DieWithError("sigaction() failed for SIGALRM");
+            }
             
             if ((recvfrom(sockfd,
                           &dataPacket,
@@ -37,7 +65,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
             
             if(dataPacket.seq_no == 0 && dataPacket.type == 1){
                 
-                printf("\n%s", dataPacket.data);
+                printf("%s", dataPacket.data);
                 fflush(stdout);
                 
                 base = 0;
@@ -57,8 +85,16 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
             }
 
             if(dataPacket.type == 4 && seqNumber == base ){
+                
                 base = -1;
                 ack = createACKPacket(8, base, cl_pid, srv_pid);
+                
+            } else if (dataPacket.type == 4 && dataPacket.seq_no == 0){
+                
+                printf(" Server hasn't available files!\n");
+                base = -1;
+                ack = createACKPacket(8, base, cl_pid, srv_pid);
+                
             }
 
             if(!is_lost(loss_rate)){
@@ -94,6 +130,7 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                 //printf(" SIMULATED LOSE ACK #%d\n", base);
             }
         }
+        alarm(timeout);
     }
     return 0;
 }

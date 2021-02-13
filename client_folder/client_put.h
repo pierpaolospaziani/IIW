@@ -1,4 +1,19 @@
-int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in srv_addr, unsigned int srv_addr_size, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate){
+void putAlarm(int ignored){
+    //printf(" Timeout");
+}
+
+int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in srv_addr, unsigned int srv_addr_size, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate, int timeout){
+    
+    struct sigaction myAction;
+    myAction.sa_handler = putAlarm;
+    if (sigemptyset(&myAction.sa_mask) < 0){
+        DieWithError("sigfillset() failed");
+    }
+    myAction.sa_flags = 0;
+    
+    if (sigaction(SIGALRM, &myAction, 0) < 0){
+        DieWithError("sigaction() failed for SIGALRM");
+    }
     
     int tries = 0;
     
@@ -16,9 +31,9 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
     int base = -1;
     int seqNumber = 0;
     
-    int noTearDownACK = 1;
+    int lastACK = 1;
     
-    while(noTearDownACK){
+    while(lastACK){
         
         // EMPTY FILE
         if (dataBufferSize == 0){
@@ -26,7 +41,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
             char seg_data[chunkSize];
             memset(seg_data, 0, sizeof(seg_data));
             dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
-            printf("\n Empty file\n\n Sending Terminal Packet\n");
+            //printf("\n Empty file\n\n Sending Terminal Packet\n");
             
             if(!is_lost(loss_rate)){
                 if (sendto(sockfd,
@@ -84,7 +99,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
         }
 
         /* Set Timer */
-        alarm(TIMEOUT_SECS);        /* Set the timeout */
+        alarm(timeout);        /* Set the timeout */
 
         /* IF window is full alert that it is waiting */
         //printf(" Window full: waiting for ACKs\n");
@@ -103,10 +118,10 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 /* reset the seqNumber back to one ahead of the last recieved ACK */
                 seqNumber = base + 1;
 
-                //printf(" Timeout: Resending\n");
+                //printf(": Resending for the %d time\n", tries+1);
                 
                 if(tries >= MAXTRIES){
-                    printf(" Tries exceeded: Closing\n");
+                    printf(" Server is not responding anymore: Upload failed!\n");
                     exit(1);
                 } else {
                     alarm(0);
@@ -119,7 +134,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                         memset(seg_data, 0, sizeof(seg_data));
                         struct segmentPacket dataPacket;
                         dataPacket = createDataPacket(2, seqNumber, cl_pid, srv_pid, seg_data);
-                        printf(" Empty file\n Sending Terminal Packet\n");
+                        //printf(" Empty file\n Sending Terminal Packet\n");
                         
                         if(!is_lost(loss_rate)){
                             if (sendto(sockfd,
@@ -172,7 +187,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                             }
                             seqNumber++;
                         }
-                        alarm(TIMEOUT_SECS);
+                        alarm(timeout);
                     }
                 }
                 tries++;
@@ -203,7 +218,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 }
             } else {
                 //printf(" ----------------------- Recieved Terminal ACK\n");
-                noTearDownACK = 0;
+                lastACK = 0;
             }
 
             /* recvfrom() got something --  cancel the timeout, reset tries */

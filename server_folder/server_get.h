@@ -1,8 +1,21 @@
-int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr_len, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate){
+void getAlarm(int ignored){
+    printf(" Timeout");
+}
+
+int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr_len, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate, int timeout){
+    
+    struct sigaction myAction;
+    myAction.sa_handler = getAlarm;
+    if (sigemptyset(&myAction.sa_mask) < 0){
+        DieWithError("sigfillset() failed");
+    }
+    myAction.sa_flags = 0;
+    
+    if (sigaction(SIGALRM, &myAction, 0) < 0){
+        DieWithError("sigaction() failed for SIGALRM");
+    }
     
     int tries = 0;
-    
-    clock_t before = clock();
     
     /* Calculate number of Segments */
     int dataBufferSize = lseek(fd, 0L, SEEK_END);
@@ -18,9 +31,9 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
     int base = -1;
     int seqNumber = 0;
     
-    int noTearDownACK = 1;
+    int lastACK = 1;
     
-    while(noTearDownACK){
+    while(lastACK){
         
         if (dataBufferSize == 0){
             struct segmentPacket dataPacket;
@@ -85,7 +98,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
         }
 
         /* Set Timer */
-        alarm(TIMEOUT_SECS);        /* Set the timeout */
+        alarm(timeout);        /* Set the timeout */
 
         /* IF window is full alert that it is waiting */
         printf("Window full: waiting for ACKs\n");
@@ -103,11 +116,11 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                 
                 /* reset the seqNumber back to one ahead of the last recieved ACK */
                 seqNumber = base + 1;
-
-                printf("Timeout: Resending\n");
+                
+                printf(": Resending for the %d time\n", tries);
                 
                 if(tries >= MAXTRIES){
-                    printf("Tries exceeded: Closing\n");
+                    printf(" Client is not responding, probably it's disconnected!\n");
                     exit(1);
                 } else {
                     alarm(0);
@@ -171,7 +184,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                             }
                             seqNumber++;
                         }
-                        alarm(TIMEOUT_SECS);
+                        alarm(timeout);
                     }
                 }
                 tries++;
@@ -204,7 +217,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                 }
             } else {
                 printf("----------------------- Recieved Terminal ACK\n");
-                noTearDownACK = 0;
+                lastACK = 0;
             }
 
             /* recvfrom() got something --  cancel the timeout, reset tries */
@@ -212,10 +225,6 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
             tries = 0;
         }
     }
-    
-    clock_t difference = clock() - before;
-    double msec = (double) difference / 1000000;
-    printf("msec: %f\n\n", msec);
     
     close(sockfd);
     return 0;

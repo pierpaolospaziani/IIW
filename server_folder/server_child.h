@@ -1,8 +1,7 @@
 #include "packets.h"
 #include "errors.h"
 
-#define TIMEOUT_SECS 1
-#define MAXTRIES 10
+#define MAXTRIES 5
 
 #include "server_list.h"
 #include "server_get.h"
@@ -10,22 +9,7 @@
 
 #define directory "./server_file/"
 
-void CatchAlarm(int ignored){
-    printf("In Alarm\n");
-}
-
-void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in cl_addr, socklen_t cl_addr_len, int chunkSize, int windowSize, float loss_rate){
-    
-    struct sigaction myAction;
-    myAction.sa_handler = CatchAlarm;
-    if (sigemptyset(&myAction.sa_mask) < 0){
-        DieWithError("sigfillset() failed");
-    }
-    myAction.sa_flags = 0;
-    
-    if (sigaction(SIGALRM, &myAction, 0) < 0){
-        DieWithError("sigaction() failed for SIGALRM");
-    }
+void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in cl_addr, socklen_t cl_addr_len, int chunkSize, int windowSize, float loss_rate, int timeout){
     
     int cl_pid = requestPck.cl_pid;
     int srv_pid = getpid();
@@ -42,12 +26,13 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                       chunkSize,
                       windowSize,
                       loss_rate,
+                      timeout,
                       cl_pid,
                       srv_pid)){
             printf("list error\n");
             fflush(stdout);
         } else {
-            printf("list andato a buon fine!\n");
+            printf(" List sent!\n");
             fflush(stdout);
             kill(getpid(), SIGKILL);
         }
@@ -84,8 +69,9 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         windowSize,
                         cl_pid,
                         srv_pid,
-                        loss_rate) == 0){
-                printf("File sent\n");
+                        loss_rate,
+                        timeout) == 0){
+                printf(" File sent!\n");
             }
             if (close(fd) < 0){
                 printf("close error\n");
@@ -98,31 +84,13 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
             
             printf("\n The required file doesn't exist!\n");
             fflush(stdout);
-            /*
-            struct ACKPacket ack;            // QUESTO DOVREBBE ESSERE UN PACCHETTO
-            ack = createACKPacket(3, 0, cl_pid, srv_pid);
-            
-            // invio ACK con type 3
-            if(!is_lost(loss_rate)){
-                if (sendto(sockfd,
-                           &ack,
-                           sizeof(ack),
-                           0,
-                           (struct sockaddr*)&cl_addr,
-                           cl_addr_len) < 0) {
-                    perror("errore in sendto");
-                    exit(1);
-                }
-            } else {
-                printf("SIMULATED LOSE\n");
-            }*/
             
             struct segmentPacket dataPacket;
             char seg_data[chunkSize];
             memset(seg_data, 0, sizeof(seg_data));
             dataPacket = createDataPacket(3, 0, cl_pid, srv_pid, seg_data);
             
-            // invio ACK con type 3
+            // invio con type 3
             if(!is_lost(loss_rate)){
                 if (sendto(sockfd,
                            &dataPacket,
@@ -134,9 +102,8 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                     exit(1);
                 }
             } else {
-                printf("SIMULATED LOSE\n");
+                //printf("SIMULATED LOSE\n");
             }
-                                                    // MANCA L'ACK QUA (?)
             kill(getpid(), SIGKILL);
         }
         
@@ -176,7 +143,7 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                     exit(1);
                 }
             } else {
-                printf("SIMULATED LOSE\n");
+                //printf("SIMULATED LOSE\n");
             }
             
             kill(getpid(), SIGKILL);
@@ -201,12 +168,11 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         srv_pid,
                         chunkSize,
                         windowSize,
-                        loss_rate)){
-                printf("putFile error\n");
-                fflush(stdout);
+                        loss_rate,
+                        timeout)){
                 remove(directoryFile);
             } else {
-                printf("putFile andato a buon fine!\n");
+                printf(" File recived!\n");
                 fflush(stdout);
             }
             if (close(fd) < 0){

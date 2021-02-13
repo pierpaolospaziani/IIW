@@ -3,21 +3,31 @@
 
 #define IP_ADDRESS "127.0.0.1"
 #define PORT_NO 5193
-#define TIMEOUT_SECS 1
-#define MAXTRIES 10
+
+#define MAXTRIES 5
 
 #include "client_list.h"
 #include "client_get.h"
 #include "client_put.h"
 
-void CatchAlarm(int ignored){
-    printf(" In Alarm\n");
+char* file;
+
+void alarmNoServer(int ignored){
+    printf(" Server is not responding, probably it's offline!\n");
+    exit(1);
+}
+void alarmNoServerGet(int ignored){
+    printf(" Server is not responding, probably it's offline!\n");
+    remove(file);
+    exit(1);
 }
 
-void childFunc(char* inputString, char* command, char* directoryFile, int fd, int chunkSize, int windowSize, float loss_rate){
+void childFunc(char* inputString, char* command, char* directoryFile, int fd, int chunkSize, int windowSize, float loss_rate, int timeout){
+    
+    file = directoryFile;
     
     struct sigaction myAction;
-    myAction.sa_handler = CatchAlarm;
+    myAction.sa_handler = alarmNoServer;
     if (sigemptyset(&myAction.sa_mask) < 0){
         DieWithError("sigfillset() failed");
     }
@@ -55,7 +65,7 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
     /*                   ------------------------------    */
     struct segmentPacket requestPck;
     requestPck = createDataPacket(0, 0, cl_pid, srv_pid, inputString);
-    //printf("Sending your request\n");
+    
     if(!is_lost(loss_rate)){
         if (sendto(sockfd,
                    &requestPck,
@@ -70,13 +80,11 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
         printf("SIMULATED LOSE\n");
     }
     
-    clock_t startTimer = clock();
-    
-    //alarm(TIMEOUT_SECS);      SERVE SOLO CHE NON LO INTERROMPEVO DOPO E DAVA ERRORE CON GET
+    alarm(timeout);
     
     // LIST
     if (strcmp(command,"list") == 0){
-        printf("\n The file list has been requested ...\n");
+        printf("\n The file list has been requested ...\n\n");
         fflush(stdout);
         if (listFiles(sockfd,
                       cl_addr,
@@ -84,11 +92,12 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                       cl_pid,
                       chunkSize,
                       windowSize,
-                      loss_rate)){
+                      loss_rate,
+                      timeout)){
             printf("listFiles error\n");
             fflush(stdout);
         } else {
-            printf(" The required list is above!\n");
+            //printf(" The required list is above!\n");
             fflush(stdout);
             kill(getpid(), SIGKILL);
         }
@@ -98,6 +107,12 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
     if (strcmp(command,"get") == 0){
         printf("\n Your file has been requested ...\n\n");
         fflush(stdout);
+        
+        myAction.sa_handler = alarmNoServerGet;
+        if (sigaction(SIGALRM, &myAction, 0) < 0){
+            DieWithError("sigaction() failed for SIGALRM");
+        }
+        
         if (getFile(fd,
                     sockfd,
                     cl_addr,
@@ -105,12 +120,11 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                     cl_pid,
                     chunkSize,
                     windowSize,
-                    loss_rate)){
-            printf(" File not available!\n");
-            fflush(stdout);
+                    loss_rate,
+                    timeout)){
             remove(directoryFile);
         } else {
-            printf(" File downloaded!\n");
+            printf(" File downloaded successfully!\n");
             fflush(stdout);
         }
         if (close(fd) < 0){
@@ -144,9 +158,7 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
             
             if (requestACK.cl_pid == cl_pid){
                 
-                clock_t endTimer = clock() - startTimer;
-                double timer = (double) endTimer / 1000000;
-                printf(" Request timer (RTT): %f\n\n", timer);
+                alarm(0);
                 
                 if (recvfrom(sockfd,
                              &requestACK,
@@ -165,14 +177,11 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                     break;
                 } else if (requestACK.type == 0){
                     printf(" This file already exist!\n");
-                    // controlla bene sta cosa che l'ho scritta al volo
-                    alarm(0);
                     kill(getpid(), SIGKILL);
                 }
             }
         }
         
-        alarm(0);
         srv_pid = requestACK.srv_pid;
         
         if (putFile(fd,
@@ -184,13 +193,15 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                     windowSize,
                     cl_pid,
                     srv_pid,
-                    loss_rate) == 0){
-            printf(" File sent successfully!\n");
+                    loss_rate,
+                    timeout) == 0){
+            printf(" File uploaded successfully!\n");
         }
         if (close(fd) < 0){
             printf("close error\n");
             exit(-1);
         }
+        
         kill(getpid(), SIGKILL);
     }
 }
