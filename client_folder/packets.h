@@ -21,11 +21,8 @@ struct segmentPacket createDataPacket (int type, int seq_no, int cl_pid, int srv
     pkt.seq_no = seq_no;
     pkt.cl_pid = cl_pid;
     pkt.srv_pid = srv_pid;
-    
     memset(pkt.data, 0, sizeof(pkt.data));
-    
     memcpy(pkt.data, data, sizeof(pkt.data));
-    
     return pkt;
 }
 

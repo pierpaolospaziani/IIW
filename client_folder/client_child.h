@@ -1,5 +1,5 @@
 #include "packets.h"
-#include "errors.h"
+#include "loss.h"
 
 #define IP_ADDRESS "127.0.0.1"
 #define PORT_NO 5193
@@ -12,38 +12,42 @@
 
 char* file;
 
-void alarmNoServer(int ignored){
+void alarmNoServer(int signum){
     printf(" Server is not responding, probably it's offline!\n");
-    exit(1);
+    kill(getpid(), SIGKILL);
 }
-void alarmNoServerGet(int ignored){
+void alarmNoServerGet(int signum){
     printf(" Server is not responding, probably it's offline!\n");
     remove(file);
-    exit(1);
+    kill(getpid(), SIGKILL);
 }
 
 void childFunc(char* inputString, char* command, char* directoryFile, int fd, int chunkSize, int windowSize, float loss_rate, int timeout){
     
     file = directoryFile;
     
+    // gestione timeout
     struct sigaction myAction;
     myAction.sa_handler = alarmNoServer;
     if (sigemptyset(&myAction.sa_mask) < 0){
-        DieWithError("sigfillset() failed");
+        fprintf(stderr,"sigfillset() failed");
+        exit(1);
     }
     myAction.sa_flags = 0;
-    
     if (sigaction(SIGALRM, &myAction, 0) < 0){
-        DieWithError("sigaction() failed for SIGALRM");
+        fprintf(stderr,"sigaction() failed for SIGALRM");
+        exit(1);
     }
     
+    /* inizzializzo le varibili con pid del processo client corrente
+        e il pid del processo padre con cui comunica */
     int cl_pid = getpid();
     int srv_pid = 0;
     
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0){
         perror("error in socket");
-        exit(1);
+        kill(getpid(), SIGKILL);
     }
     
     struct sockaddr_in cl_addr;
@@ -57,7 +61,7 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
     cl_addr.sin_port = htons(PORT_NO);
     if (inet_pton(AF_INET, IP_ADDRESS, &cl_addr.sin_addr) <= 0) {
         fprintf(stderr, "error in inet_pton per %s", IP_ADDRESS);
-        exit(1);
+        kill(getpid(), SIGKILL);
     }
     
     /*                   ------------------------------    */
@@ -74,12 +78,14 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                    (struct sockaddr*) &cl_addr,
                    cl_addr_size) != sizeof(requestPck)) {
             perror("errore in sendto");
-            exit(1);
+            kill(getpid(), SIGKILL);
         }
     } else {
-        printf("SIMULATED LOSE\n");
+        //printf(" Loss simulation\n");
     }
     
+    /* dopo aver mandato la richiesta parte il timer,
+        se scade il server non ha risposto in tempo oppure è offline */
     alarm(timeout);
     
     // LIST
@@ -97,7 +103,6 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
             printf("listFiles error\n");
             fflush(stdout);
         } else {
-            //printf(" The required list is above!\n");
             fflush(stdout);
             kill(getpid(), SIGKILL);
         }
@@ -108,9 +113,12 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
         printf("\n Your file has been requested ...\n\n");
         fflush(stdout);
         
+        /* cambio la gestione del sengale perchè è stato creato il file,
+            se non verrà ricevuto correttamente viene eliminato */
         myAction.sa_handler = alarmNoServerGet;
         if (sigaction(SIGALRM, &myAction, 0) < 0){
-            DieWithError("sigaction() failed for SIGALRM");
+            fprintf(stderr,"sigaction() failed for SIGALRM");
+            exit(1);
         }
         
         if (getFile(fd,
@@ -142,8 +150,11 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
         
         struct ACKPacket requestACK;
         
+        /* chiede di fare l'upload del file, il server può rispondere:
+            OK (type = 1) oppure il file esiste già (type = 0) */
         while (1){
             
+            // attendo la risposta del server ..
             if (recvfrom(sockfd,
                          &requestACK,
                          sizeof(requestACK),
@@ -152,14 +163,17 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                          &srv_addr_size) < 0) {
                 if (errno != EINTR){
                     perror("errore in recvfrom");
-                    exit(1);
+                    kill(getpid(), SIGKILL);
                 }
             }
             
+            // .. se l'ACK che arriva "è per me"
             if (requestACK.cl_pid == cl_pid){
                 
+                // azzero il timer
                 alarm(0);
                 
+                // tolgo l'ACK dal buffer avendo usato precedentemente MSG_PEEK e lasciato disponibile
                 if (recvfrom(sockfd,
                              &requestACK,
                              sizeof(requestACK),
@@ -168,12 +182,13 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                              &srv_addr_size) < 0) {
                     if (errno != EINTR){
                         perror("errore in recvfrom");
-                        exit(1);
+                        kill(getpid(), SIGKILL);
                     }
                 }
                 
+                // controllo la risposta del server
                 if (requestACK.type == 1){
-                    //printf("----------------------- Recieved ACK for requestPck\n");
+                    //printf(" Recieved ACK for requestPck\n");
                     break;
                 } else if (requestACK.type == 0){
                     printf(" This file already exist!\n");
@@ -182,8 +197,10 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
             }
         }
         
+        // prendo il pid del processo server che utilizzo per l'invio dei pacchetti
         srv_pid = requestACK.srv_pid;
         
+        // se ho ricevuto l'OK procedo con l'upload
         if (putFile(fd,
                     sockfd,
                     cl_addr,
@@ -201,7 +218,6 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
             printf("close error\n");
             exit(-1);
         }
-        
         kill(getpid(), SIGKILL);
     }
 }

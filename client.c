@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
     
     float loss_rate = 0;
     
-    if (argc == 4){
+    if (argc >= 4){
         loss_rate = atof(argv[3]);
         if(loss_rate > 1){
             fprintf(stderr, "Error: Loss Rate must be < 1\n");

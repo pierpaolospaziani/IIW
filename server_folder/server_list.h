@@ -1,18 +1,24 @@
-void listAlarm(int ignored){
-    //printf(" Timeout");
+void listAlarm(int signum){
+    printf(" Timeout");
+    fflush(stdout);
 }
 
 int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, char* directory, int chunkSize, int windowSize, float loss_rate, int timeout, int cl_pid, int srv_pid){
     
+    struct sockaddr_in fool_addr;
+    unsigned int fool_addr_len;
+    
     struct sigaction myAction;
     myAction.sa_handler = listAlarm;
     if (sigemptyset(&myAction.sa_mask) < 0){
-        DieWithError("sigfillset() failed");
+        fprintf(stderr,"sigfillset() failed");
+        exit(1);
     }
     myAction.sa_flags = 0;
     
     if (sigaction(SIGALRM, &myAction, 0) < 0){
-        DieWithError("sigaction() failed for SIGALRM");
+        fprintf(stderr,"sigaction() failed for SIGALRM");
+        exit(1);
     }
     
     // accesso alla cartella server_file
@@ -26,7 +32,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
     list = (char *) malloc(sizeof(char));
     if(list == NULL){
         printf("Malloc error\n");
-        exit(1);
+        kill(getpid(), SIGKILL);
     }
     
     char tempBuff[1024];
@@ -34,7 +40,8 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
     
     if (d != NULL){
         
-        // mette tutti i file in 'list' e mando solo 1 pacchetto (dimensione permettendo)
+        /* mette tutta la lista di file in 'list' direttamente con il separatore
+            in modo da dover mandare direttamente la stringa */
         while ((dir = readdir(d)) != NULL){
             
             if (strcmp(dir->d_name, ".") &&
@@ -51,7 +58,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                 list = (char *) realloc(list, len);
                 if(list == NULL){
                     printf("Malloc error\n");
-                    exit(1);
+                    kill(getpid(), SIGKILL);
                 }
                 
                 strcat(list,tempBuff);
@@ -74,10 +81,11 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                            0,
                            (struct sockaddr *) &cli_addr,
                            sizeof(cli_addr)) != sizeof(dataPacket)){
-                    DieWithError("sendto() sent a different number of bytes than expected");
+                    fprintf(stderr,"sendto() sent a different number of bytes than expected");
+                    exit(1);
                 }
             } else {
-                //printf("SIMULATED LOSE\n");
+                //printf(" Loss simulation\n");
             }
             
             alarm(timeout);
@@ -87,16 +95,17 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                             &ack,
                             sizeof(ack),
                             MSG_PEEK,
-                            (struct sockaddr *) &cli_addr,
-                            &cl_addr_len) < 0) {
+                            (struct sockaddr *) &fool_addr,
+                            &fool_addr_len) < 0) {
                 if (errno != EINTR){
-                    DieWithError("recvfrom() failed");
+                    fprintf(stderr,"recvfrom() failed");
+                    exit(1);
                 } else if (errno == EINTR){
-                    //printf(": Resending for the %d time\n", tries+1);
+                    printf(": Resending for the %d time\n", tries+1);
                     tries++;
                     if (tries >= MAXTRIES){
                         printf(" Client is not responding, probably it's disconnected!\n");
-                        exit(1);
+                        kill(getpid(), SIGKILL);
                     }
                 }
                 alarm(timeout);
@@ -111,12 +120,13 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                              (struct sockaddr *) &cli_addr,
                              &cl_addr_len) < 0) {
                     if (errno != EINTR){
-                        DieWithError("recvfrom() failed");
+                        fprintf(stderr,"recvfrom() failed");
+                        exit(1);
                     }
                 }
                 
                 if(ack.type == 8){
-                    //printf("----------------------- Recieved ACK for Empty folder\n");
+                    //printf(" Recieved ACK for Empty folder\n");
                 }
             }
             
@@ -136,14 +146,13 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
             
             while(lastACK){
 
-                /* Send chunks from base up to window size */
                 while(seqNumber <= numOfSegments && (seqNumber - base) <= windowSize){
                     
                     struct segmentPacket dataPacket;
 
                     if(seqNumber == numOfSegments){
                         dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
-                        //printf("Sending Terminal Packet\n");
+                        //printf(" Sending Terminal Packet\n");
                         
                     } else {
                         
@@ -154,7 +163,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                         strncpy(seg_data, (list + seqNumber*chunkSize), chunkSize);
 
                         dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
-                        //printf("Sending Packet: %d\n", seqNumber);
+                        //printf(" Sending Packet: %d\n", seqNumber);
                     }
                     
                     if(!is_lost(loss_rate)){
@@ -164,43 +173,43 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                                    0,
                                    (struct sockaddr *) &cli_addr,
                                    sizeof(cli_addr)) != sizeof(dataPacket)){
-                            DieWithError("sendto() sent a different number of bytes than expected");
+                            fprintf(stderr,"sendto() sent a different number of bytes than expected");
+                            exit(1);
                         }
                     } else {
-                        //printf("SIMULATED LOSE Packet: %d\n", seqNumber);
+                        //printf(" Loss simulation Packet: %d\n", seqNumber);
                     }
                     seqNumber++;
                 }
                 
                 alarm(timeout);
-                //printf("Window full: waiting for ACKs\n");
+                //printf(" Window full: waiting for ACKs\n");
                 
                 struct ACKPacket ack;
                 while (recvfrom(sockfd,
                                 &ack,
                                 sizeof(ack),
                                 MSG_PEEK,
-                                (struct sockaddr *) &cli_addr,
-                                &cl_addr_len) < 0) {
+                                (struct sockaddr *) &fool_addr,
+                                &fool_addr_len) < 0) {
                     if (errno == EINTR) {
                         seqNumber = base + 1;
                         
-                        //printf(": Resending for the %d time\n", tries+1);
+                        printf(": Resending for the %d time\n", tries+1);
                         
                         if(tries >= MAXTRIES){
                             printf(" Client is not responding, probably it's disconnected!\n");
-                            exit(1);
+                            kill(getpid(), SIGKILL);
                         } else {
-                            alarm(0);
                             
-                            // RITRASMISSIONE
+                            alarm(0);
                             
                             while(seqNumber <= numOfSegments && (seqNumber - base) <= windowSize){
                                 struct segmentPacket dataPacket;
 
                                 if(seqNumber == numOfSegments){
                                     dataPacket = createTerminalPacket(seqNumber, cl_pid, srv_pid);
-                                    //printf("Sending Terminal Packet\n");
+                                    //printf(" Sending Terminal Packet\n");
                                 } else {
                                     char seg_data[chunkSize];
                                     
@@ -209,7 +218,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                                     strncpy(seg_data, (list + seqNumber*chunkSize), chunkSize);
 
                                     dataPacket = createDataPacket(1, seqNumber, cl_pid, srv_pid, seg_data);
-                                    //printf("Sending Packet: %d\n", seqNumber);
+                                    //printf(" Sending Packet: %d\n", seqNumber);
                                 }
                                 
                                 if(!is_lost(loss_rate)){
@@ -219,10 +228,11 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                                                0,
                                                (struct sockaddr *) &cli_addr,
                                                sizeof(cli_addr)) != sizeof(dataPacket)){
-                                        DieWithError("sendto() sent a different number of bytes than expected");
+                                        fprintf(stderr,"sendto() sent a different number of bytes than expected");
+                                        exit(1);
                                     }
                                 } else {
-                                    //printf("SIMULATED LOSE Packet: %d\n", seqNumber);
+                                    //printf(" Loss simulation Packet: %d\n", seqNumber);
                                 }
                                 seqNumber++;
                             }
@@ -230,7 +240,8 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                         }
                         tries++;
                     } else {
-                        DieWithError("recvfrom() failed");
+                        fprintf(stderr,"recvfrom() failed");
+                        exit(1);
                     }
                 }
                 
@@ -243,17 +254,18 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                                  (struct sockaddr *) &cli_addr,
                                  &cl_addr_len) < 0) {
                         if (errno != EINTR){
-                            DieWithError("recvfrom() failed");
+                            fprintf(stderr,"recvfrom() failed");
+                            exit(1);
                         }
                     }
                     
                     if(ack.type != 8){
-                        //printf("----------------------- Recieved ACK: %d\n", ack.ack_no);
+                        //printf(" Recieved ACK: %d\n", ack.ack_no);
                         if(ack.ack_no > base){
                             base = ack.ack_no;
                         }
                     } else {
-                        //printf("----------------------- Recieved Terminal ACK\n");
+                        //printf(" Recieved Terminal ACK\n");
                         lastACK = 0;
                     }
                     alarm(0);

@@ -1,24 +1,21 @@
-void putAlarm(int ignored){
-    //printf(" Timeout");
+void putAlarm(int signum){
+    printf(" Client is not responding, probably it's disconnected!\n");
+    kill(getpid(), SIGKILL);
 }
 
 int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, int windowSize, float loss_rate, int timeout){
     
-    struct sigaction myAction;
-    myAction.sa_handler = putAlarm;
-    if (sigemptyset(&myAction.sa_mask) < 0){
-        DieWithError("sigfillset() failed");
-    }
-    myAction.sa_flags = 0;
+    struct sockaddr_in fool_addr;
+    unsigned int fool_addr_len;
     
-    if (sigaction(SIGALRM, &myAction, 0) < 0){
-        DieWithError("sigaction() failed for SIGALRM");
+    if (signal(SIGALRM, putAlarm) < 0){
+        fprintf(stderr,"signal() failed for SIGALRM");
+        exit(1);
     }
     
-    //printf("------------------------------------  Sending requestACK\n");
+    //printf(" Sending requestACK\n");
     struct ACKPacket requestAck;
     requestAck = createACKPacket(1, 0, cl_pid, srv_pid);
-    // invio ACK con type 1
     
     if(!is_lost(loss_rate)){
         if (sendto(sockfd,
@@ -27,15 +24,14 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                    0,
                    (struct sockaddr*)&cli_addr,
                    cl_addr_len) != sizeof(requestAck)){
-            DieWithError("sendto() sent a different number of bytes than expected");
+            fprintf(stderr,"sendto() sent a different number of bytes than expected");
+            exit(1);
         }
     } else {
-        //printf("SIMULATED LOSE requestACK");
+        //printf(" Loss simulation requestACK");
     }
     
     alarm(timeout);
-    
-    int tries = 0;
     
     int base = -2;
     int seqNumber = 0;
@@ -50,25 +46,19 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                       &dataPacket,
                       sizeof(dataPacket),
                       MSG_PEEK,
-                      (struct sockaddr *) &cli_addr,
-                      &cl_addr_len)) < 0){
+                      (struct sockaddr *) &fool_addr,
+                      &fool_addr_len)) < 0){
             if (errno != EINTR){
-                DieWithError("recvfrom() failed");
+                fprintf(stderr,"recvfrom() failed");
+                exit(1);
             } else if (errno == EINTR){
-                //printf(" %d time/s\n", tries + 1);
-                tries++;
-                if (tries >= MAXTRIES){
-                    printf(" Client is not responding, probably it's disconnected!\n");
-                    return 1;
-                }
+                continue;
             }
-            alarm(timeout);
         }
         
         if (dataPacket.srv_pid == srv_pid){
             
             alarm(0);
-            tries = 0;
             
             if ((recvfrom(sockfd,
                           &dataPacket,
@@ -76,20 +66,21 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                           0,
                           (struct sockaddr *) &cli_addr,
                           &cl_addr_len)) < 0){
-                DieWithError("recvfrom() failed");
+                fprintf(stderr,"recvfrom() failed");
+                exit(1);
             }
 
             seqNumber = dataPacket.seq_no;
             
             if (dataPacket.type == 2){
                 
-                //printf("Recieved an Empty file\n");
+                //printf(" Recieved an Empty file\n");
                 base = -1;
                 ack = createACKPacket(8, base, cl_pid, srv_pid);
                 
             } else if (dataPacket.seq_no == 0 && dataPacket.type == 1){
                 
-                //printf("Recieved Initial Packet\n");
+                //printf(" Recieved Initial Packet\n");
                 
                 write(fd, dataPacket.data, chunkSize);
                 
@@ -97,11 +88,8 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
                 
             } else if (dataPacket.seq_no == base + 1){
-                /* if base+1 then its a subsequent in order packet */
-            
-                /* then concatinate the data sent to the recieving buffer */
-                //printf("Recieved Subseqent Packet #%d\n", dataPacket.seq_no);
-                fflush(stdout);
+                
+                //printf("Recieved Packet #%d\n", dataPacket.seq_no);
                 
                 write(fd, dataPacket.data, chunkSize);
                 
@@ -110,53 +98,48 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 
             } else if (dataPacket.type == 1 && dataPacket.seq_no != base + 1){
                 
-                /* if recieved out of sync packet, send ACK with old base */
-                //printf("Recieved Out of Sync Packet #%d\n", dataPacket.seq_no);
-                /* Resend ACK with old base */
+                //printf("Recieved out of sequence Packet #%d\n", dataPacket.seq_no);
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
             }
 
-            /* type 4 means that the packet recieved is a termination packet */
             if(dataPacket.type == 4 && seqNumber == base ){
+                
                 base = -1;
-                /* create an ACK packet with terminal type 8 */
                 ack = createACKPacket(8, base, cl_pid, srv_pid);
             }
 
-            /* Add random packet lose, if lost dont process */
             if(!is_lost(loss_rate)){
-
-                /* Send ACK for Packet Recieved */
                 if(base >= 0){
-                    //printf("------------------------------------  Sending ACK #%d\n", base);
+                    //printf(" Sending ACK #%d\n", base);
                     if (sendto(sockfd,
                                &ack,
                                sizeof(ack), 0,
                                (struct sockaddr *) &cli_addr,
                                sizeof(cli_addr)) != sizeof(ack)){
-                        DieWithError("sendto() sent a different number of bytes than expected");
+                        fprintf(stderr,"sendto() sent a different number of bytes than expected");
+                        exit(1);
                     }
                 } else if (base == -1) {
-                    //printf("Recieved Last Packet\n");
-                    //printf("------------------------------------  Sending Terminal ACK\n");
+                    //printf(" Recieved Last Packet\n");
+                    //printf(" Sending Terminal ACK\n");
                     if (sendto(sockfd,
                                &ack,
                                sizeof(ack),
                                0,
                                (struct sockaddr *) &cli_addr,
                                sizeof(cli_addr)) != sizeof(ack)){
-                        DieWithError("sendto() sent a different number of bytes than expected");
+                        fprintf(stderr,"sendto() sent a different number of bytes than expected");
+                        exit(1);
                     }
                 }
 
-                /* if data packet is terminal packet, display and clear the recieved message */
                 if(dataPacket.type == 4 && base == -1){
                     return 0;
                 } else if (dataPacket.type == 2){
                     return 0;
                 }
             } else {
-                //printf("SIMULATED LOSE ACK #%d\n", base);
+                //printf(" Loss simulation ACK #%d\n", base);
             }
         }
         alarm(timeout);
