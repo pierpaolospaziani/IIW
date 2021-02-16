@@ -173,7 +173,7 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         timeout)){
                 remove(directoryFile);
             } else {
-                printf(" File recived!\n");
+                printf(" File received!\n");
                 fflush(stdout);
             }
             if (close(fd) < 0){

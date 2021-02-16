@@ -1,6 +1,6 @@
 void listAlarm(int signum){
-    printf(" Timeout");
-    fflush(stdout);
+    //printf(" Timeout");
+    //fflush(stdout);
 }
 
 int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, char* directory, int chunkSize, int windowSize, float loss_rate, int timeout, int cl_pid, int srv_pid){
@@ -101,7 +101,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                     fprintf(stderr,"recvfrom() failed");
                     exit(1);
                 } else if (errno == EINTR){
-                    printf(": Resending for the %d time\n", tries+1);
+                    //printf(": Resending for the %d time\n", tries+1);
                     tries++;
                     if (tries >= MAXTRIES){
                         printf(" Client is not responding, probably it's disconnected!\n");

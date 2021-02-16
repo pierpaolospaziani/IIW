@@ -1,6 +1,6 @@
 void getAlarm(int signum){
-    printf(" Timeout");
-    fflush(stdout);
+    //printf(" Timeout");
+    //fflush(stdout);
 }
 
 int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr_len, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate, int timeout){
@@ -112,7 +112,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                 
                 seqNumber = base + 1;
                 
-                printf(": Resending for the %d time\n", tries);
+                //printf(": Resending for the %d time\n", tries);
                 
                 if(tries >= MAXTRIES){
                     printf(" Client is not responding, probably it's disconnected!\n");
