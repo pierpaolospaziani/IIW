@@ -127,7 +127,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 //printf(": Resending for the %d time\n", tries+1);
                 if(tries >= MAXTRIES){
                     printf(" Server is not responding anymore: Upload failed!\n");
-                    kill(getpid(), SIGKILL);
+                    return 1;
                 } else {
                     alarm(0);
                     

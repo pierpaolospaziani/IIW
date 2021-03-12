@@ -5,7 +5,7 @@ void putAlarm(int signum){
     kill(getpid(), SIGKILL);
 }
 
-int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, int windowSize, float loss_rate, int timeout, char* fileName){
+int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, float loss_rate, int timeout, char* fileName){
     
     file = fileName;
     
@@ -122,7 +122,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                         fprintf(stderr,"sendto() sent a different number of bytes than expected");
                         exit(1);
                     }
-                } else if (base == -1) {
+                } else if (base == -1 && dataPacket.type != 5) {
                     //printf(" Recieved Last Packet\n");
                     //printf(" Sending Terminal ACK\n");
                     if (sendto(sockfd,

@@ -175,7 +175,6 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         cl_pid,
                         srv_pid,
                         chunkSize,
-                        windowSize,
                         loss_rate,
                         timeout,
                         directoryFile)){
