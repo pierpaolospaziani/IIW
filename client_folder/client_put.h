@@ -1,5 +1,5 @@
 void putAlarm(int signum){
-    printf(" Timeout");
+    //printf(" Timeout");
 }
 
 int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in srv_addr, unsigned int srv_addr_size, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate, int timeout){
@@ -34,6 +34,10 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
     
     // ciclo finchè non riceviamo l'ultimo ACK
     int lastACK = 1;
+
+    // parte il timer per non rimanere bloccati se il server è offline
+    alarm(timeout);
+    
     while(lastACK){
         
         // FILE VUOTO
@@ -102,9 +106,6 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 seqNumber++;
             }
         }
-
-        // parte il timer riempita la finestra oppure inviato l'ultimo pacchetto
-        alarm(timeout);
         
         //printf(" Window full\n");
 
@@ -123,7 +124,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 // riprende dal pacchetto successivo all'ultimo di cui ha ricevuto ACK
                 seqNumber = base + 1;
 
-                printf(": Resending for the %d time\n", tries+1);
+                //printf(": Resending for the %d time\n", tries+1);
                 if(tries >= MAXTRIES){
                     printf(" Server is not responding anymore: Upload failed!\n");
                     kill(getpid(), SIGKILL);
@@ -218,23 +219,39 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
             }
             
             // se NON è l'ultimo ..
-            if(ack.type != 8){
+            if(ack.type != 4){
                 //printf(" Recieved ACK: %d\n", ack.ack_no);
                 
-                // .. controllo se è quello che aspettavo ..
+                /* .. controllo se è quello che aspettavo, nel caso azzero il timer e
+                 aggiorno l'ultimo pacchetto di cui ho ricevuto ACK .. */
                 if(ack.ack_no > base){
                     base = ack.ack_no;
+                    alarm(timeout);
                 }
                 
-            // .. altrimenti se è l'ultimo (type 8), interrompo il ciclo e termino
+            // .. altrimenti se è l'ultimo (type 4), interrompo il ciclo, invio la conferma e termino
             } else {
                 //printf(" Recieved Terminal ACK\n");
                 lastACK = 0;
+                struct segmentPacket dataPacket;
+                dataPacket = createTerminalConfirmPacket(seqNumber, cl_pid, srv_pid);
+                if(!is_lost(loss_rate)){
+                    if (sendto(sockfd,
+                               &dataPacket,
+                               sizeof(dataPacket),
+                               0,
+                               (struct sockaddr *) &cl_addr,
+                               sizeof(cl_addr)) != sizeof(dataPacket)){
+                        fprintf(stderr,"sendto() sent a different number of bytes than expected");
+                        exit(1);
+                    }
+                } else {
+                    //printf(" Loss simulation Packet: %d\n", seqNumber);
+                }
             }
 
-            /* quando ricevo un ACK, sia in sequenza che non, azzero il timer e
-             i tentativi di ritrasmissione, significa che il server è ancora online*/
-            alarm(0);
+            /* quando ricevo un ACK, sia in sequenza che non, azzero i tentativi
+             di ritrasmissione, significa che il server è ancora online */
             tries = 0;
         }
     }

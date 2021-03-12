@@ -46,7 +46,8 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
             
             if (strcmp(dir->d_name, ".") &&
                 strcmp(dir->d_name, "..") &&
-                strcmp(dir->d_name, ".DS_Store")){
+                strcmp(dir->d_name, ".DS_Store") &&
+                strcmp(dir->d_name, "temp")){
                 
                 num++;
                 
@@ -65,6 +66,9 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
             }
         }
         closedir(d);
+        
+        // parte il timer per non rimanere bloccati se il server è offline
+        alarm(timeout);
         
         // se non è presente alcun file
         if (num == 0){
@@ -87,8 +91,6 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
             } else {
                 //printf(" Loss simulation\n");
             }
-            
-            alarm(timeout);
             
             struct ACKPacket ack;
             while (recvfrom(sockfd,
@@ -125,7 +127,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                     }
                 }
                 
-                if(ack.type == 8){
+                if(ack.type == 4){
                     //printf(" Recieved ACK for Empty folder\n");
                 }
             }
@@ -182,7 +184,6 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                     seqNumber++;
                 }
                 
-                alarm(timeout);
                 //printf(" Window full: waiting for ACKs\n");
                 
                 struct ACKPacket ack;
@@ -259,16 +260,16 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                         }
                     }
                     
-                    if(ack.type != 8){
+                    if(ack.type != 4){
                         //printf(" Recieved ACK: %d\n", ack.ack_no);
                         if(ack.ack_no > base){
                             base = ack.ack_no;
+                            alarm(timeout);
                         }
                     } else {
                         //printf(" Recieved Terminal ACK\n");
                         lastACK = 0;
                     }
-                    alarm(0);
                     tries = 0;
                 }
             }

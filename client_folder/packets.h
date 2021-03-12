@@ -39,6 +39,19 @@ struct segmentPacket createTerminalPacket (int seq_no, int cl_pid, int srv_pid){
     return pkt;
 }
 
+struct segmentPacket createTerminalConfirmPacket (int seq_no, int cl_pid, int srv_pid){
+
+    struct segmentPacket pkt;
+
+    pkt.type = 5;
+    pkt.seq_no = seq_no;
+    pkt.cl_pid = cl_pid;
+    pkt.srv_pid = srv_pid;
+    memset(pkt.data, 0, sizeof(pkt.data));
+
+    return pkt;
+}
+
 struct ACKPacket createACKPacket (int ack_type, int base, int cl_pid, int srv_pid){
         struct ACKPacket ack;
         ack.type = ack_type;

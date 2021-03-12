@@ -35,6 +35,9 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
     
     int lastACK = 1;
     
+    // parte il timer per non rimanere bloccati se il server è offline
+    alarm(timeout);
+    
     while(lastACK){
         
         if (dataBufferSize == 0){
@@ -96,8 +99,6 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                 seqNumber++;
             }
         }
-
-        alarm(timeout);
 
         //printf(" Window full\n");
 
@@ -200,17 +201,17 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
                 }
             }
             
-            if(ack.type != 8){
+            if(ack.type != 4){
                 //printf(" Recieved ACK: %d\n", ack.ack_no);
                 if(ack.ack_no > base){
                     base = ack.ack_no;
+                    alarm(timeout);
                 }
             } else {
                 //printf(" Recieved Terminal ACK\n");
                 lastACK = 0;
             }
             
-            alarm(0);
             tries = 0;
         }
     }

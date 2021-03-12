@@ -1,9 +1,13 @@
+char* file;
 void putAlarm(int signum){
     printf(" Client is not responding, probably it's disconnected!\n");
+    remove(file);
     kill(getpid(), SIGKILL);
 }
 
-int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, int windowSize, float loss_rate, int timeout){
+int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, int windowSize, float loss_rate, int timeout, char* fileName){
+    
+    file = fileName;
     
     struct sockaddr_in fool_addr;
     unsigned int fool_addr_len;
@@ -76,7 +80,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 
                 //printf(" Recieved an Empty file\n");
                 base = -1;
-                ack = createACKPacket(8, base, cl_pid, srv_pid);
+                ack = createACKPacket(4, base, cl_pid, srv_pid);
                 
             } else if (dataPacket.seq_no == 0 && dataPacket.type == 1){
                 
@@ -102,10 +106,9 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
             }
 
-            if(dataPacket.type == 4 && seqNumber == base ){
-                
+            if(dataPacket.type == 4 && seqNumber == base){
                 base = -1;
-                ack = createACKPacket(8, base, cl_pid, srv_pid);
+                ack = createACKPacket(4, base, cl_pid, srv_pid);
             }
 
             if(!is_lost(loss_rate)){
@@ -132,14 +135,14 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                         exit(1);
                     }
                 }
-
-                if(dataPacket.type == 4 && base == -1){
-                    return 0;
-                } else if (dataPacket.type == 2){
-                    return 0;
-                }
             } else {
                 //printf(" Loss simulation ACK #%d\n", base);
+            }
+            
+            if(dataPacket.type == 5 && base == -1){
+                return 0;
+            } else if (dataPacket.type == 2){
+                return 0;
             }
         }
         alarm(timeout);

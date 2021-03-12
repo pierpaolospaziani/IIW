@@ -10,21 +10,24 @@
 #include "client_get.h"
 #include "client_put.h"
 
+char* tempFile;
 char* file;
 
 void alarmNoServer(int signum){
     printf(" Server is not responding, probably it's offline!\n");
+    rename(tempFile, file);
     kill(getpid(), SIGKILL);
 }
 void alarmNoServerGet(int signum){
     printf(" Server is not responding, probably it's offline!\n");
-    remove(file);
+    remove(tempFile);
     kill(getpid(), SIGKILL);
 }
 
-void childFunc(char* inputString, char* command, char* directoryFile, int fd, int chunkSize, int windowSize, float loss_rate, int timeout){
+void childFunc(char* inputString, char* command, char* directoryFile, char* tempDirectoryFile, int fd, int chunkSize, int windowSize, float loss_rate, int timeout){
     
     file = directoryFile;
+    tempFile = tempDirectoryFile;
     
     // gestione timeout
     struct sigaction myAction;
@@ -130,10 +133,11 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                     windowSize,
                     loss_rate,
                     timeout)){
-            remove(directoryFile);
+            remove(tempDirectoryFile);
         } else {
             printf(" File downloaded successfully!\n");
             fflush(stdout);
+            rename(tempDirectoryFile, directoryFile);
         }
         if (close(fd) < 0){
             printf("close error\n");
@@ -163,6 +167,7 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                          &srv_addr_size) < 0) {
                 if (errno != EINTR){
                     perror("errore in recvfrom");
+                    rename(tempDirectoryFile, directoryFile);
                     kill(getpid(), SIGKILL);
                 }
             }
@@ -182,6 +187,7 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                              &srv_addr_size) < 0) {
                     if (errno != EINTR){
                         perror("errore in recvfrom");
+                        rename(tempDirectoryFile, directoryFile);
                         kill(getpid(), SIGKILL);
                     }
                 }
@@ -192,6 +198,7 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                     break;
                 } else if (requestACK.type == 0){
                     printf(" This file already exist!\n");
+                    rename(tempDirectoryFile, directoryFile);
                     kill(getpid(), SIGKILL);
                 }
             }
@@ -213,11 +220,13 @@ void childFunc(char* inputString, char* command, char* directoryFile, int fd, in
                     loss_rate,
                     timeout) == 0){
             printf(" File uploaded successfully!\n");
+            rename(tempDirectoryFile, directoryFile);
         }
         if (close(fd) < 0){
             printf("close error\n");
             exit(-1);
         }
+        rename(tempDirectoryFile, directoryFile);
         kill(getpid(), SIGKILL);
     }
 }

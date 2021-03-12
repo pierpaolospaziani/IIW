@@ -73,13 +73,13 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
             if(dataPacket.type == 4 && seqNumber == base ){
                 
                 base = -1;
-                ack = createACKPacket(8, base, cl_pid, srv_pid);
+                ack = createACKPacket(4, base, cl_pid, srv_pid);
                 
             } else if (dataPacket.type == 4 && dataPacket.seq_no == 0){
                 
                 printf(" Server hasn't available files!\n");
                 base = -1;
-                ack = createACKPacket(8, base, cl_pid, srv_pid);
+                ack = createACKPacket(4, base, cl_pid, srv_pid);
                 
             }
 

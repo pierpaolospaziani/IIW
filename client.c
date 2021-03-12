@@ -18,6 +18,7 @@
 
 #define commandsString "\n  -      list       : returns a list of available files\n\n  - get 'file_name' : download a file from the server\n\n  - put 'file_name' : upload a file to the server\n\n"
 #define directory "./client_file/"
+#define tempDirectory "./client_file/temp/"
 
 #include "./client_folder/client_child.h"
 
@@ -156,6 +157,10 @@ redo:
         
         snprintf(directoryFile, sizeof directoryFile, "%s%s", directory, fileName);
         
+        char tempDirectoryFile[strlen(tempDirectory) + strlen(fileName) + 1];
+        memset(tempDirectoryFile, 0, sizeof(tempDirectoryFile));
+        snprintf(tempDirectoryFile, sizeof tempDirectoryFile, "%s%s", tempDirectory, fileName);
+        
         // LIST
         if (res == 1){
         
@@ -178,7 +183,9 @@ redo1:
                     printf("\n Ok, the file will be overwritten!\n");
                     fflush(stdout);
                     
-                    fd = open(directoryFile, O_WRONLY | O_TRUNC);
+                    remove(directoryFile);
+                    
+                    fd = open(tempDirectoryFile, O_WRONLY | O_CREAT, 0666);
                     
                     if (fd == -1){
                         printf(" File open error, try again..\n");
@@ -203,9 +210,16 @@ redo1:
                 }
                 
             // se il file NON esiste ancora
+            } else if (access(tempDirectoryFile, F_OK) == 0){
+                
+                printf("\n This file already exist!\n Unluckily you cannot overwrite it now because it is being uploaded to the server.\n If you want overwrite it try later.\n");
+                fflush(stdout);
+                
+                goto redo;
+                
             } else {
                 
-                fd = open(directoryFile, O_WRONLY | O_CREAT, 0666);
+                fd = open(tempDirectoryFile, O_WRONLY | O_CREAT, 0666);
                 
                 if (fd == -1){
                     printf(" File open error, try again..\n");
@@ -221,7 +235,9 @@ redo1:
             // se il file esiste
             if(access(directoryFile, F_OK) == 0) {
                 
-                fd = open(directoryFile, O_RDONLY);
+                rename(directoryFile, tempDirectoryFile);
+                
+                fd = open(tempDirectoryFile, O_RDONLY);
                 
                 if (fd == -1){
                     printf(" File open error, try again..\n");
@@ -255,6 +271,7 @@ redo1:
             childFunc(inputString,
                       command,
                       directoryFile,
+                      tempDirectoryFile,
                       fd,
                       chunkSize,
                       windowSize,

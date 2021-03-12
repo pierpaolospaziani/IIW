@@ -58,7 +58,7 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 
                 printf(" Recieved an Empty file\n\n");
                 base = -1;
-                ack = createACKPacket(8, base, cl_pid, srv_pid);
+                ack = createACKPacket(4, base, cl_pid, srv_pid);
                 
             // .. se ricevo il primo pacchetto del file scrivo sul file e creo l'ACK ..
             } else if (dataPacket.seq_no == 0 && dataPacket.type == 1){
@@ -83,10 +83,10 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 ack = createACKPacket(2, base, cl_pid, srv_pid);
             }
 
-            // .. se ricevo l'ultimo pacchetto creo ACK creo l'ACK terminatore con type 8
+            // .. se ricevo l'ultimo pacchetto creo ACK creo l'ACK terminatore con type 4
             if(dataPacket.type == 4 && seqNumber == base){
                 base = -1;
-                ack = createACKPacket(8, base, cl_pid, srv_pid);
+                ack = createACKPacket(4, base, cl_pid, srv_pid);
             }
 
             // invio ACK, con probabilità di perdita

@@ -8,6 +8,7 @@
 #include "server_put.h"
 
 #define directory "./server_file/"
+#define tempDirectory "./server_file/temp/"
 
 void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in cl_addr, socklen_t cl_addr_len, int chunkSize, int windowSize, float loss_rate, int timeout){
     
@@ -112,18 +113,24 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
         printf("\n Operation:   put\n");
         fflush(stdout);
         
+        timeout = 10;
+        
         char fileName[strlen(requestPck.data) - 4];
         memset(fileName, 0, sizeof(fileName));
         
         strncpy(fileName, requestPck.data + 4, strlen(requestPck.data) - 5);
         
-        char directoryFile[strlen(directory) + strlen(fileName) + 1];
+        char directoryFile[strlen(tempDirectory) + strlen(fileName) + 1];
         memset(directoryFile, 0, sizeof(directoryFile));
         
-        snprintf(directoryFile, sizeof directoryFile, "%s%s", directory, fileName);
+        snprintf(directoryFile, sizeof directoryFile, "%s%s", tempDirectory, fileName);
+        
+        char finalDirectoryFile[strlen(directory) + strlen(fileName) + 1];
+        memset(finalDirectoryFile, 0, sizeof(finalDirectoryFile));
+        snprintf(finalDirectoryFile, sizeof finalDirectoryFile, "%s%s", directory, fileName);
         
         // se il file esiste già
-        if (access(directoryFile, F_OK) == 0) {
+        if (access(directoryFile, F_OK) == 0 || access(finalDirectoryFile, F_OK) == 0) {
             printf("\n This file already exist!\n");
             fflush(stdout);
             
@@ -170,11 +177,13 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         chunkSize,
                         windowSize,
                         loss_rate,
-                        timeout)){
+                        timeout,
+                        directoryFile)){
                 remove(directoryFile);
             } else {
                 printf(" File received!\n");
                 fflush(stdout);
+                rename(directoryFile,finalDirectoryFile);
             }
             if (close(fd) < 0){
                 printf("close error\n");
