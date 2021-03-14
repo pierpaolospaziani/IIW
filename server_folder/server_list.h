@@ -113,7 +113,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                 alarm(timeout);
             }
             
-            if (ack.cl_pid == cl_pid){
+            if (ack.srv_pid == srv_pid){
                 
                 if (recvfrom(sockfd,
                              &ack,

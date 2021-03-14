@@ -73,6 +73,9 @@ void childFunc(char* inputString, char* command, char* directoryFile, char* temp
     struct segmentPacket requestPck;
     requestPck = createDataPacket(0, 0, cl_pid, srv_pid, inputString);
     
+    struct timeval stop, start;
+    gettimeofday(&start, NULL);
+    
     if(!is_lost(loss_rate)){
         if (sendto(sockfd,
                    &requestPck,
@@ -89,7 +92,28 @@ void childFunc(char* inputString, char* command, char* directoryFile, char* temp
     
     /* dopo aver mandato la richiesta parte il timer,
         se scade il server non ha risposto in tempo oppure è offline */
-    alarm(timeout);
+    struct itimerval it_val, stopTimer;
+    
+    /* se non inserito viene impostato un timeout di mezzo secondo per il primo pacchetto
+        per poi essere calcolato e impostato con la risposta al paccehtto di richiesta */
+    if (timeout == 0){
+        it_val.it_value.tv_sec = 500/1000;
+        it_val.it_value.tv_usec = (500*1000) % 1000000;
+        it_val.it_interval = it_val.it_value;
+    } else {
+        it_val.it_value.tv_sec = timeout/1000;
+        it_val.it_value.tv_usec = (timeout*1000) % 1000000;
+        it_val.it_interval = it_val.it_value;
+    }
+    
+    stopTimer.it_value.tv_sec = 0;
+    stopTimer.it_value.tv_usec = 0;
+    stopTimer.it_interval = stopTimer.it_value;
+    
+    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+      perror("error calling setitimer()");
+      exit(1);
+    }
     
     // LIST
     if (strcmp(command,"list") == 0){
@@ -175,8 +199,16 @@ void childFunc(char* inputString, char* command, char* directoryFile, char* temp
             // .. se l'ACK che arriva "è per me"
             if (requestACK.cl_pid == cl_pid){
                 
+                gettimeofday(&stop, NULL);
+                if (timeout == 0){
+                    timeout = (stop.tv_usec - start.tv_usec)/1000;
+                }
+                
                 // azzero il timer
-                alarm(0);
+                if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+                  perror("error calling setitimer()");
+                  exit(1);
+                }
                 
                 // tolgo l'ACK dal buffer avendo usato precedentemente MSG_PEEK e lasciato disponibile
                 if (recvfrom(sockfd,

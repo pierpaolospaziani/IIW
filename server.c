@@ -89,10 +89,10 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    int userTimer = 1;
+    int userTimer = 0;
     
     if (argc == 5){
-        userTimer = atoi(argv[4]);
+        userTimer = atoi(argv[4]) * 1000;
         if(userTimer < 1){
             fprintf(stderr, "Error: Timer must be > 1\n");
             exit(1);

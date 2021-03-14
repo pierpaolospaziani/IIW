@@ -1,8 +1,12 @@
 void putAlarm(int signum){
     //printf(" Timeout");
+    //fflush(stdout);
 }
 
 int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in srv_addr, unsigned int srv_addr_size, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate, int timeout){
+    
+    struct timeval stop, start;
+    gettimeofday(&start, NULL);
     
     // gestione timeout
     struct sigaction myAction;
@@ -16,6 +20,15 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
         fprintf(stderr,"sigaction() failed for SIGALRM");
         exit(1);
     }
+    
+    struct itimerval it_val, stopTimer;
+    it_val.it_value.tv_sec = timeout/1000;
+    it_val.it_value.tv_usec = (timeout*1000) % 1000000;
+    it_val.it_interval = it_val.it_value;
+    
+    stopTimer.it_value.tv_sec = 0;
+    stopTimer.it_value.tv_usec = 0;
+    stopTimer.it_interval = stopTimer.it_value;
     
     // numero di ritrasmissioni consecutive
     int tries = 0;
@@ -36,7 +49,11 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
     int lastACK = 1;
 
     // parte il timer per non rimanere bloccati se il server è offline
-    alarm(timeout);
+    //alarm(timeout);
+    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+      perror("error calling setitimer()");
+      exit(1);
+    }
     
     while(lastACK){
         
@@ -125,13 +142,15 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                 seqNumber = base + 1;
 
                 //printf(": Resending for the %d time\n", tries+1);
+                //fflush(stdout);
                 if(tries >= MAXTRIES){
                     printf(" Server is not responding anymore: Upload failed!\n");
                     return 1;
                 } else {
-                    alarm(0);
-                    
                     // RITRASMISSIONE
+                    
+                    // aumento il numero dei tentativi di ritrasmissione
+                    tries++;
                     
                     if (dataBufferSize == 0){
                     
@@ -191,11 +210,19 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                             seqNumber++;
                         }
                         // parte l'allarme dopo aver ritrasmesso
-                        alarm(timeout);
+                        if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+                          perror("error calling setitimer()");
+                          exit(1);
+                        }
+                        it_val.it_value.tv_sec = timeout/1000*tries;
+                        it_val.it_value.tv_usec = (timeout*1000) % 1000000*tries;
+                        it_val.it_interval = it_val.it_value;
+                        if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+                          perror("error calling setitimer()");
+                          exit(1);
+                        }
                     }
                 }
-                // aumento il numero dei tentativi di ritrasmissione
-                tries++;
             } else {
                 fprintf(stderr,"recvfrom() failed");
                 exit(1);
@@ -221,12 +248,23 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
             // se NON è l'ultimo ..
             if(ack.type != 4){
                 //printf(" Recieved ACK: %d\n", ack.ack_no);
+                //fflush(stdout);
                 
                 /* .. controllo se è quello che aspettavo, nel caso azzero il timer e
                  aggiorno l'ultimo pacchetto di cui ho ricevuto ACK .. */
                 if(ack.ack_no > base){
                     base = ack.ack_no;
-                    alarm(timeout);
+                    if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+                      perror("error calling setitimer()");
+                      exit(1);
+                    }
+                    it_val.it_value.tv_sec = timeout/1000;
+                    it_val.it_value.tv_usec = (timeout*1000) % 1000000;
+                    it_val.it_interval = it_val.it_value;
+                    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+                      perror("error calling setitimer()");
+                      exit(1);
+                    }
                 }
                 
             // .. altrimenti se è l'ultimo (type 4), interrompo il ciclo, invio la conferma e termino
@@ -255,6 +293,9 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
             tries = 0;
         }
     }
+    gettimeofday(&stop, NULL);
+    printf(" Took %f seconds\n", (float) ((stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec)/1000000);
+    
     close(sockfd);
     return 0;
 }

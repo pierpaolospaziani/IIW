@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <sys/time.h>
 
 #define DATALIMIT 511
 
@@ -115,10 +116,10 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    int userTimer = 1;
+    int userTimer = 0;
     
     if (argc == 5){
-        userTimer = atoi(argv[4]);
+        userTimer = atoi(argv[4]) * 1000;
         if(userTimer < 1){
             fprintf(stderr, "Error: Timer must be > 1\n");
             exit(1);
@@ -212,7 +213,7 @@ redo1:
             // se il file NON esiste ancora
             } else if (access(tempDirectoryFile, F_OK) == 0){
                 
-                printf("\n This file already exist!\n Unluckily you cannot overwrite it now because it is being uploaded to the server.\n If you want overwrite it try later.\n");
+                printf("\n This file already exist!\n Unluckily you cannot overwrite it now!\n It is already in download or it is being uploaded to the server.\n If you want overwrite it try later.\n");
                 fflush(stdout);
                 
                 goto redo;

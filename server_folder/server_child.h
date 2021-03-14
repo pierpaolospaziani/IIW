@@ -10,10 +10,31 @@
 #define directory "./server_file/"
 #define tempDirectory "./server_file/temp/"
 
+void alarmServer(int signum){
+    //printf(" Timeout");
+    //fflush(stdout);
+}
+
 void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in cl_addr, socklen_t cl_addr_len, int chunkSize, int windowSize, float loss_rate, int timeout){
     
     int cl_pid = requestPck.cl_pid;
     int srv_pid = getpid();
+    
+    struct sockaddr_in fool_addr;
+    unsigned int fool_addr_len;
+    
+    struct sigaction myAction;
+    myAction.sa_handler = alarmServer;
+    if (sigemptyset(&myAction.sa_mask) < 0){
+        fprintf(stderr,"sigfillset() failed");
+        exit(1);
+    }
+    myAction.sa_flags = 0;
+    
+    if (sigaction(SIGALRM, &myAction, 0) < 0){
+        fprintf(stderr,"sigaction() failed for SIGALRM");
+        exit(1);
+    }
     
     // LIST
     if (requestPck.data[0] == 'l'){
@@ -86,26 +107,71 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
             printf("\n The required file doesn't exist!\n");
             fflush(stdout);
             
+            int tries = 0;
+            alarm(timeout);
+            
             struct segmentPacket dataPacket;
             char seg_data[chunkSize];
             memset(seg_data, 0, sizeof(seg_data));
             dataPacket = createDataPacket(3, 0, cl_pid, srv_pid, seg_data);
             
-            // invio pacchetto con type 3
-            if(!is_lost(loss_rate)){
-                if (sendto(sockfd,
-                           &dataPacket,
-                           sizeof(dataPacket),
-                           0,
-                           (struct sockaddr*)&cl_addr,
-                           cl_addr_len) < 0) {
-                    perror("errore in sendto");
-                    kill(getpid(), SIGKILL);
+            while (1) {
+                // invio pacchetto con type 3
+                if(!is_lost(loss_rate)){
+                    if (sendto(sockfd,
+                               &dataPacket,
+                               sizeof(dataPacket),
+                               0,
+                               (struct sockaddr*)&cl_addr,
+                               cl_addr_len) < 0) {
+                        perror("errore in sendto");
+                        kill(getpid(), SIGKILL);
+                    }
+                } else {
+                    //printf("Loss simulation\n");
                 }
-            } else {
-                //printf("Loss simulation\n");
+                
+                struct ACKPacket ack;
+                while (recvfrom(sockfd,
+                                &ack,
+                                sizeof(ack),
+                                MSG_PEEK,
+                                (struct sockaddr *) &fool_addr,
+                                &fool_addr_len) < 0) {
+                    if (errno != EINTR){
+                        fprintf(stderr,"recvfrom() failed");
+                        exit(1);
+                    } else if (errno == EINTR){
+                        //printf(": Resending for the %d time\n", tries+1);
+                        tries++;
+                        if (tries >= MAXTRIES){
+                            printf(" Client is not responding, probably it's disconnected!\n");
+                            kill(getpid(), SIGKILL);
+                        }
+                    }
+                    alarm(timeout);
+                }
+                
+                if (ack.srv_pid == srv_pid){
+                    
+                    if (recvfrom(sockfd,
+                                 &ack,
+                                 sizeof(ack),
+                                 0,
+                                 (struct sockaddr *) &cl_addr,
+                                 &cl_addr_len) < 0) {
+                        if (errno != EINTR){
+                            fprintf(stderr,"recvfrom() failed");
+                            exit(1);
+                        }
+                    }
+                    
+                    if(ack.type == 5){
+                        //printf(" Recieved Confirm ACK\n");
+                        kill(getpid(), SIGKILL);
+                    }
+                }
             }
-            kill(getpid(), SIGKILL);
         }
         
     // PUT
@@ -113,7 +179,7 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
         printf("\n Operation:   put\n");
         fflush(stdout);
         
-        timeout = 10;
+        timeout = 3;
         
         char fileName[strlen(requestPck.data) - 4];
         memset(fileName, 0, sizeof(fileName));
