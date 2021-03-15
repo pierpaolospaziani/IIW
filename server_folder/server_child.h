@@ -15,7 +15,7 @@ void alarmServer(int signum){
     //fflush(stdout);
 }
 
-void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in cl_addr, socklen_t cl_addr_len, int chunkSize, int windowSize, float loss_rate, int timeout){
+void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in cl_addr, socklen_t cl_addr_len, int chunkSize, int windowSize, float loss_rate, float timeout){
     
     int cl_pid = requestPck.cl_pid;
     int srv_pid = getpid();
@@ -76,6 +76,8 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
         
         // se il file esiste
         if (access(directoryFile, F_OK) == 0) {
+            printf(" Required :   %s\n", fileName);
+            fflush(stdout);
             
             int fd = open(directoryFile, O_RDONLY);
             if (fd == -1){
@@ -103,12 +105,26 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
             
         // se il file NON esiste
         } else {
-            
-            printf("\n The required file doesn't exist!\n");
+            printf(" The required file doesn't exist!\n");
             fflush(stdout);
             
             int tries = 0;
-            alarm(timeout);
+            
+            struct itimerval it_val;
+            if (timeout == 0.0){
+                it_val.it_value.tv_sec = 1;
+                it_val.it_value.tv_usec = 0;
+                it_val.it_interval = it_val.it_value;
+            } else {
+                it_val.it_value.tv_sec = (int) timeout;
+                it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
+                it_val.it_interval = it_val.it_value;
+            }
+            
+            if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+              perror("error calling setitimer()");
+              exit(1);
+            }
             
             struct segmentPacket dataPacket;
             char seg_data[chunkSize];
@@ -147,9 +163,29 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
                         if (tries >= MAXTRIES){
                             printf(" Client is not responding, probably it's disconnected!\n");
                             kill(getpid(), SIGKILL);
+                        } else {
+                            if(!is_lost(loss_rate)){
+                                if (sendto(sockfd,
+                                           &dataPacket,
+                                           sizeof(dataPacket),
+                                           0,
+                                           (struct sockaddr*)&cl_addr,
+                                           cl_addr_len) < 0) {
+                                    perror("errore in sendto");
+                                    kill(getpid(), SIGKILL);
+                                }
+                            } else {
+                                //printf("Loss simulation\n");
+                            }
                         }
                     }
-                    alarm(timeout);
+                    it_val.it_value.tv_sec = (int) timeout * tries;
+                    it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000) * tries;
+                    it_val.it_interval = it_val.it_value;
+                    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+                      perror("error calling setitimer()");
+                      exit(1);
+                    }
                 }
                 
                 if (ack.srv_pid == srv_pid){
@@ -179,8 +215,6 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
         printf("\n Operation:   put\n");
         fflush(stdout);
         
-        timeout = 3;
-        
         char fileName[strlen(requestPck.data) - 4];
         memset(fileName, 0, sizeof(fileName));
         
@@ -197,7 +231,7 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
         
         // se il file esiste già
         if (access(directoryFile, F_OK) == 0 || access(finalDirectoryFile, F_OK) == 0) {
-            printf("\n This file already exist!\n");
+            printf(" This file already exist!\n");
             fflush(stdout);
             
             struct ACKPacket ack;
@@ -223,7 +257,7 @@ void childFunc(struct segmentPacket requestPck, int sockfd, struct sockaddr_in c
             
         // se il file NON esiste
         } else {
-            printf("\n Uploading %s\n", fileName);
+            printf(" Uploading:   %s\n", fileName);
             fflush(stdout);
             
             int fd = open(directoryFile, O_WRONLY | O_CREAT, 0666);

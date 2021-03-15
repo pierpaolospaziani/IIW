@@ -24,7 +24,7 @@ void alarmNoServerGet(int signum){
     kill(getpid(), SIGKILL);
 }
 
-void childFunc(char* inputString, char* command, char* directoryFile, char* tempDirectoryFile, int fd, int chunkSize, int windowSize, float loss_rate, int timeout){
+void childFunc(char* inputString, char* command, char* directoryFile, char* tempDirectoryFile, int fd, int chunkSize, int windowSize, float loss_rate, float timeout){
     
     file = directoryFile;
     tempFile = tempDirectoryFile;
@@ -73,9 +73,6 @@ void childFunc(char* inputString, char* command, char* directoryFile, char* temp
     struct segmentPacket requestPck;
     requestPck = createDataPacket(0, 0, cl_pid, srv_pid, inputString);
     
-    struct timeval stop, start;
-    gettimeofday(&start, NULL);
-    
     if(!is_lost(loss_rate)){
         if (sendto(sockfd,
                    &requestPck,
@@ -90,19 +87,23 @@ void childFunc(char* inputString, char* command, char* directoryFile, char* temp
         //printf(" Loss simulation\n");
     }
     
+    /* utilizzato per calcolare l'RTT */
+    struct timeval stop, start;
+    
     /* dopo aver mandato la richiesta parte il timer,
         se scade il server non ha risposto in tempo oppure è offline */
     struct itimerval it_val, stopTimer;
     
-    /* se non inserito viene impostato un timeout di mezzo secondo per il primo pacchetto
+    /* se non inserito viene impostato un timeout di 1 secondo per il primo pacchetto
         per poi essere calcolato e impostato con la risposta al paccehtto di richiesta */
-    if (timeout == 0){
-        it_val.it_value.tv_sec = 500/1000;
-        it_val.it_value.tv_usec = (500*1000) % 1000000;
+    if (timeout == 0.0){
+        gettimeofday(&start, NULL);
+        it_val.it_value.tv_sec = 1;
+        it_val.it_value.tv_usec = 0;
         it_val.it_interval = it_val.it_value;
     } else {
-        it_val.it_value.tv_sec = timeout/1000;
-        it_val.it_value.tv_usec = (timeout*1000) % 1000000;
+        it_val.it_value.tv_sec = (int) timeout;
+        it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
         it_val.it_interval = it_val.it_value;
     }
     
@@ -200,8 +201,9 @@ void childFunc(char* inputString, char* command, char* directoryFile, char* temp
             if (requestACK.cl_pid == cl_pid){
                 
                 gettimeofday(&stop, NULL);
-                if (timeout == 0){
-                    timeout = (stop.tv_usec - start.tv_usec)/1000;
+                if (timeout == 0.0){
+                    timeout = (float) ((stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec)/1000000;
+                    timeout = 3 * timeout;
                 }
                 
                 // azzero il timer

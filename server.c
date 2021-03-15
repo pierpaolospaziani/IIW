@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #define IP_ADDRESS "127.0.0.1"
 #define PORT_NO 5193
@@ -55,7 +56,7 @@ int main(int argc, char *argv[]) {
     unsigned int cl_addr_len;
     
     if (argc < 3 || argc > 5){
-        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate> <Timer>\n Loss Rate and Timer are optional, if not specified are set to 0 and 1.\n You gave %d Argument/s.\n\n", argv[0], argc);
+        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate> <Timer>\n Loss Rate and Timer are optional\n If not specified Loss Rate is set to 0 and Timer is calculated automatically.\n You gave %d Argument/s.\n\n", argv[0], argc);
         exit(1);
     }
     
@@ -89,12 +90,12 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    int userTimer = 0;
+    float userTimer = 0;
     
     if (argc == 5){
-        userTimer = atoi(argv[4]) * 1000;
-        if(userTimer < 1){
-            fprintf(stderr, "Error: Timer must be > 1\n");
+        userTimer = atoi(argv[4]);
+        if(userTimer <= 0.0){
+            fprintf(stderr, "Error: Timer must be > 0.0\n");
             exit(1);
         }
     }

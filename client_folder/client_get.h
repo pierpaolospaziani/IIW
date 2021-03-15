@@ -1,4 +1,19 @@
-int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int chunkSize, int windowSize, float loss_rate, int timeout){
+int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int chunkSize, int windowSize, float loss_rate, float timeout){
+    
+    // setup del timer (3 secondi)
+    struct itimerval it_val, stopTimer;
+    if (timeout == 0.0){
+        it_val.it_value.tv_sec = 3;
+        it_val.it_value.tv_usec = 0;
+        it_val.it_interval = it_val.it_value;
+    } else {
+        it_val.it_value.tv_sec = (int) timeout;
+        it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
+        it_val.it_interval = it_val.it_value;
+    }
+    stopTimer.it_value.tv_sec = 0;
+    stopTimer.it_value.tv_usec = 0;
+    stopTimer.it_interval = stopTimer.it_value;
     
     // base rappresenta il numero di sequenza dell'ultimo pacchetto in sequenza
     int base = -2;
@@ -27,8 +42,11 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
         // se il Pacchetto ricevuto "è per me"
         if (dataPacket.cl_pid == cl_pid){
             
-            // azzero il timer significa che il server è ancora online
-            alarm(0);
+            // azzero il timer perchè significa che il server è ancora online
+            if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+              perror("error calling setitimer()");
+              exit(1);
+            }
             
             // tolgo il Pacchetto dal buffer avendo usato precedentemente MSG_PEEK e lasciato disponibile
             if ((recvfrom(sockfd,
@@ -132,7 +150,10 @@ int getFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
             }
         }
         // riparte il timer per controllare che il server sia ancora online
-        alarm(timeout);
+        if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+          perror("error calling setitimer()");
+          exit(1);
+        }
     }
     return 0;
 }

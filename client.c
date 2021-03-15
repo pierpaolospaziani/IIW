@@ -24,7 +24,6 @@
 #include "./client_folder/client_child.h"
 
 int commandCheck(char* inputString, char* command){
-    
     if (inputString[0] == 'l' &&
         inputString[1] == 'i' &&
         inputString[2] == 's' &&
@@ -83,7 +82,7 @@ void sig_chld_handler(int signum){
 int main(int argc, char *argv[]) {
     
     if (argc < 3 || argc > 5){
-        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate> <Timer>\n Loss Rate and Timer are optional, if not specified are set to 0 and 1.\n You gave %d Argument/s.\n\n", argv[0], argc);
+        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate> <Timer>\n Loss Rate and Timer are optional\n If not specified Loss Rate is set to 0 and Timer is calculated automatically.\n You gave %d Argument/s.\n\n", argv[0], argc);
         exit(1);
     }
     
@@ -116,12 +115,12 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    int userTimer = 0;
+    float userTimer = 0;
     
     if (argc == 5){
-        userTimer = atoi(argv[4]) * 1000;
-        if(userTimer < 1){
-            fprintf(stderr, "Error: Timer must be > 1\n");
+        userTimer = atoi(argv[4]);
+        if(userTimer <= 0.0){
+            fprintf(stderr, "Error: Timer must be > 0.0\n");
             exit(1);
         }
     }
@@ -144,8 +143,15 @@ redo:
     while (1) {
         
         char inputString[1024];
-        fgets(inputString, 1024, stdin);
+        memset(inputString, 0, sizeof(inputString));
+        fgets(inputString, 1023, stdin);
         fflush(stdin);
+        
+        if (strlen(inputString) == 1){
+            printf("\n No command detected...\n");
+            fflush(stdout);
+            goto redo;
+        }
         
         int res = commandCheck(inputString,command);
         

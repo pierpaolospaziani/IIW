@@ -3,7 +3,7 @@ void putAlarm(int signum){
     //fflush(stdout);
 }
 
-int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in srv_addr, unsigned int srv_addr_size, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate, int timeout){
+int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in srv_addr, unsigned int srv_addr_size, int chunkSize, int windowSize, int cl_pid, int srv_pid, float loss_rate, float timeout){
     
     struct timeval stop, start;
     gettimeofday(&start, NULL);
@@ -21,9 +21,10 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
         exit(1);
     }
     
+    // setup del timer, se adattivo è già stato calcolato in client_child
     struct itimerval it_val, stopTimer;
-    it_val.it_value.tv_sec = timeout/1000;
-    it_val.it_value.tv_usec = (timeout*1000) % 1000000;
+    it_val.it_value.tv_sec = (int) timeout;
+    it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
     it_val.it_interval = it_val.it_value;
     
     stopTimer.it_value.tv_sec = 0;
@@ -49,7 +50,6 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
     int lastACK = 1;
 
     // parte il timer per non rimanere bloccati se il server è offline
-    //alarm(timeout);
     if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
       perror("error calling setitimer()");
       exit(1);
@@ -214,8 +214,8 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                           perror("error calling setitimer()");
                           exit(1);
                         }
-                        it_val.it_value.tv_sec = timeout/1000*tries;
-                        it_val.it_value.tv_usec = (timeout*1000) % 1000000*tries;
+                        it_val.it_value.tv_sec = (int) timeout * tries;
+                        it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000) * tries;
                         it_val.it_interval = it_val.it_value;
                         if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
                           perror("error calling setitimer()");
@@ -258,8 +258,8 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
                       perror("error calling setitimer()");
                       exit(1);
                     }
-                    it_val.it_value.tv_sec = timeout/1000;
-                    it_val.it_value.tv_usec = (timeout*1000) % 1000000;
+                    it_val.it_value.tv_sec = (int) timeout;
+                    it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
                     it_val.it_interval = it_val.it_value;
                     if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
                       perror("error calling setitimer()");
@@ -294,7 +294,7 @@ int putFile(int fd, int sockfd, struct sockaddr_in cl_addr, struct sockaddr_in s
         }
     }
     gettimeofday(&stop, NULL);
-    printf(" Took %f seconds\n", (float) ((stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec)/1000000);
+    //printf(" Took %f seconds\n", (float) ((stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec)/1000000);
     
     close(sockfd);
     return 0;

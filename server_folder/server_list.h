@@ -3,7 +3,7 @@ void listAlarm(int signum){
     //fflush(stdout);
 }
 
-int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, char* directory, int chunkSize, int windowSize, float loss_rate, int timeout, int cl_pid, int srv_pid){
+int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, char* directory, int chunkSize, int windowSize, float loss_rate, float timeout, int cl_pid, int srv_pid){
     
     struct sockaddr_in fool_addr;
     unsigned int fool_addr_len;
@@ -67,8 +67,33 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
         }
         closedir(d);
         
-        // parte il timer per non rimanere bloccati se il server è offline
-        alarm(timeout);
+        /* utilizzato per calcolare l'RTT */
+        struct timeval stop, start;
+        
+        // parte il timer per non rimanere bloccati se il client è offline
+        struct itimerval it_val, stopTimer;
+        
+        /* se non inserito viene impostato un timeout di 1 secondo per il primo pacchetto
+            per poi essere calcolato e impostato con la risposta al paccehtto di richiesta */
+        if (timeout == 0.0){
+            gettimeofday(&start, NULL);
+            it_val.it_value.tv_sec = 1;
+            it_val.it_value.tv_usec = 0;
+            it_val.it_interval = it_val.it_value;
+        } else {
+            it_val.it_value.tv_sec = (int) timeout;
+            it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
+            it_val.it_interval = it_val.it_value;
+        }
+        
+        stopTimer.it_value.tv_sec = 0;
+        stopTimer.it_value.tv_usec = 0;
+        stopTimer.it_interval = stopTimer.it_value;
+        
+        if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+          perror("error calling setitimer()");
+          exit(1);
+        }
         
         // se non è presente alcun file
         if (num == 0){
@@ -104,13 +129,34 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                     exit(1);
                 } else if (errno == EINTR){
                     //printf(": Resending for the %d time\n", tries+1);
-                    tries++;
                     if (tries >= MAXTRIES){
                         printf(" Client is not responding, probably it's disconnected!\n");
                         kill(getpid(), SIGKILL);
+                    } else {
+                        tries++;
+                        if(!is_lost(loss_rate)){
+                            if (sendto(sockfd,
+                                       &dataPacket,
+                                       sizeof(dataPacket),
+                                       0,
+                                       (struct sockaddr *) &cli_addr,
+                                       sizeof(cli_addr)) != sizeof(dataPacket)){
+                                fprintf(stderr,"sendto() sent a different number of bytes than expected");
+                                exit(1);
+                            }
+                        } else {
+                            //printf(" Loss simulation\n");
+                        }
                     }
                 }
-                alarm(timeout);
+                // parte l'allarme dopo aver ritrasmesso
+                it_val.it_value.tv_sec = (int) timeout * tries;
+                it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000) * tries;
+                it_val.it_interval = it_val.it_value;
+                if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+                  perror("error calling setitimer()");
+                  exit(1);
+                }
             }
             
             if (ack.srv_pid == srv_pid){
@@ -203,7 +249,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                             kill(getpid(), SIGKILL);
                         } else {
                             
-                            alarm(0);
+                            tries++;
                             
                             while(seqNumber <= numOfSegments && (seqNumber - base) <= windowSize){
                                 struct segmentPacket dataPacket;
@@ -237,9 +283,19 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                                 }
                                 seqNumber++;
                             }
-                            alarm(timeout);
+                            // parte l'allarme dopo aver ritrasmesso
+                            if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+                              perror("error calling setitimer()");
+                              exit(1);
+                            }
+                            it_val.it_value.tv_sec = (int) timeout * tries;
+                            it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000) * tries;
+                            it_val.it_interval = it_val.it_value;
+                            if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+                              perror("error calling setitimer()");
+                              exit(1);
+                            }
                         }
-                        tries++;
                     } else {
                         fprintf(stderr,"recvfrom() failed");
                         exit(1);
@@ -259,12 +315,28 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
                             exit(1);
                         }
                     }
+                
+                    if (timeout == 0 && ack.ack_no == 0){
+                        gettimeofday(&stop, NULL);
+                        timeout = (float) ((stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec)/1000000;
+                        timeout = 3 * timeout;
+                    }
                     
                     if(ack.type != 4){
                         //printf(" Recieved ACK: %d\n", ack.ack_no);
                         if(ack.ack_no > base){
                             base = ack.ack_no;
-                            alarm(timeout);
+                            if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+                              perror("error calling setitimer()");
+                              exit(1);
+                            }
+                            it_val.it_value.tv_sec = (int) timeout;
+                            it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
+                            it_val.it_interval = it_val.it_value;
+                            if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+                              perror("error calling setitimer()");
+                              exit(1);
+                            }
                         }
                     } else {
                         //printf(" Recieved Terminal ACK\n");

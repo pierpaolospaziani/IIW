@@ -1,6 +1,20 @@
 // Non ho commentato il codice essendo molto simile a 'client_get' che è stato commentato.
 
-int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, int cl_pid, int chunkSize, int windowSize, float loss_rate, int timeout){
+int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, int cl_pid, int chunkSize, int windowSize, float loss_rate, float timeout){
+    
+    struct itimerval it_val, stopTimer;
+    if (timeout == 0.0){
+        it_val.it_value.tv_sec = 3;
+        it_val.it_value.tv_usec = 0;
+        it_val.it_interval = it_val.it_value;
+    } else {
+        it_val.it_value.tv_sec = (int) timeout;
+        it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
+        it_val.it_interval = it_val.it_value;
+    }
+    stopTimer.it_value.tv_sec = 0;
+    stopTimer.it_value.tv_usec = 0;
+    stopTimer.it_interval = stopTimer.it_value;
     
     int base = -2;
     int seqNumber = 0;
@@ -27,7 +41,10 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
         
         if (dataPacket.cl_pid == cl_pid){
             
-            alarm(0);
+            if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+              perror("error calling setitimer()");
+              exit(1);
+            }
             
             if ((recvfrom(sockfd,
                           &dataPacket,
@@ -114,7 +131,10 @@ int listFiles(int sockfd, struct sockaddr_in srv_addr, socklen_t srv_addr_len, i
                 //printf(" Loss simulation ACK #%d\n", base);
             }
         }
-        alarm(timeout);
+        if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+          perror("error calling setitimer()");
+          exit(1);
+        }
     }
     return 0;
 }

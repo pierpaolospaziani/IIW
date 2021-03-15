@@ -1,11 +1,16 @@
 char* file;
+int lastAcked;
 void putAlarm(int signum){
-    printf(" Client is not responding, probably it's disconnected!\n");
-    remove(file);
+    if (lastAcked != 4){
+        printf(" Client is not responding, probably it's disconnected!\n");
+        remove(file);
+    } else {
+        printf(" Client is not responding anymore, but the upload is complete!\n");
+    }
     kill(getpid(), SIGKILL);
 }
 
-int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, float loss_rate, int timeout, char* fileName){
+int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, float loss_rate, float timeout, char* fileName){
     
     file = fileName;
     
@@ -35,7 +40,24 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
         //printf(" Loss simulation requestACK");
     }
     
-    alarm(timeout);
+    struct itimerval it_val, stopTimer;
+    if (timeout == 0.0){
+        it_val.it_value.tv_sec = 3;
+        it_val.it_value.tv_usec = 0;
+        it_val.it_interval = it_val.it_value;
+    } else {
+        it_val.it_value.tv_sec = (int) timeout;
+        it_val.it_value.tv_usec = (int) (timeout * 1000000 - ((int) timeout) * 1000000);
+        it_val.it_interval = it_val.it_value;
+    }
+    stopTimer.it_value.tv_sec = 0;
+    stopTimer.it_value.tv_usec = 0;
+    stopTimer.it_interval = stopTimer.it_value;
+    
+    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+      perror("error calling setitimer()");
+      exit(1);
+    }
     
     int base = -2;
     int seqNumber = 0;
@@ -62,7 +84,12 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
         
         if (dataPacket.srv_pid == srv_pid){
             
-            alarm(0);
+            lastAcked = dataPacket.seq_no;
+            
+            if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
+              perror("error calling setitimer()");
+              exit(1);
+            }
             
             if ((recvfrom(sockfd,
                           &dataPacket,
@@ -145,7 +172,10 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 return 0;
             }
         }
-        alarm(timeout);
+        if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+          perror("error calling setitimer()");
+          exit(1);
+        }
     }
     return 0;
 }
