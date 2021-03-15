@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     unsigned int cl_addr_len;
     
     if (argc < 3 || argc > 5){
-        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate> <Timer>\n Loss Rate and Timer are optional\n If not specified Loss Rate is set to 0 and Timer is calculated automatically.\n You gave %d Argument/s.\n\n", argv[0], argc);
+        fprintf(stderr,"\n Usage: %s <Chunk Size> <Window Size> <Loss Rate> <Timer>\n Loss Rate and Timer are optional.\n If not specified, Loss Rate is set to 0 and Timer is calculated automatically.\n You gave %d Argument/s.\n\n", argv[0], argc);
         exit(1);
     }
     
