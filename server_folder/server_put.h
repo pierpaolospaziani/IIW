@@ -4,10 +4,10 @@ void putAlarm(int signum){
     if (lastAcked != 4){
         printf(" Client is not responding, probably it's disconnected!\n");
         remove(file);
+        kill(getpid(), SIGKILL);
     } else {
         printf(" Client is not responding anymore, but the upload is complete!\n");
     }
-    kill(getpid(), SIGKILL);
 }
 
 int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, int cl_pid, int srv_pid, int chunkSize, float loss_rate, float timeout, char* fileName){
@@ -78,13 +78,16 @@ int putFile(int fd, int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_l
                 fprintf(stderr,"recvfrom() failed");
                 exit(1);
             } else if (errno == EINTR){
+                if (lastAcked == 4){
+                    return 0;
+                }
                 continue;
             }
         }
         
         if (dataPacket.srv_pid == srv_pid){
             
-            lastAcked = dataPacket.seq_no;
+            lastAcked = dataPacket.type;
             
             if (setitimer(ITIMER_REAL, &stopTimer, NULL) == -1) {
               perror("error calling setitimer()");

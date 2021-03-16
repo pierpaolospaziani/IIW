@@ -95,13 +95,16 @@ int main(int argc, char *argv[]) {
     
     int chunkSize = atoi(argv[1]);
     if(chunkSize > DATALIMIT){
-        fprintf(stderr, "Error: Chunk Size is too large. Must be < 512 bytes\n");
+        fprintf(stderr, "Error: Chunk Size is too large. Must be < 512\n");
+        exit(1);
+    } else if (chunkSize < 1){
+        fprintf(stderr, "Error: Chunk Size is too small. Must be >= 1\n");
         exit(1);
     }
     
     int windowSize = atoi(argv[2]);
     if(windowSize < 1){
-        fprintf(stderr, "Error: Window Size must be > 1\n");
+        fprintf(stderr, "Error: Window Size must be >= 1\n");
         exit(1);
     }
     
@@ -110,7 +113,7 @@ int main(int argc, char *argv[]) {
     if (argc >= 4){
         loss_rate = atof(argv[3]);
         if(loss_rate > 1){
-            fprintf(stderr, "Error: Loss Rate must be < 1\n");
+            fprintf(stderr, "Error: Loss Rate must be <= 1\n");
             exit(1);
         }
     }
