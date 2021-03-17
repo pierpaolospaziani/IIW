@@ -35,14 +35,8 @@ int getFile(int fd, int sockfd, struct sockaddr_in cl_addr, unsigned int cl_addr
     
     int lastACK = 1;
     
-    /* utilizzato per calcolare l'RTT */
     struct timeval stop, start;
-    
-    // parte il timer per non rimanere bloccati se il client è offline
     struct itimerval it_val, stopTimer;
-    
-    /* se non inserito viene impostato un timeout di 1 secondo per il primo pacchetto
-        per poi essere calcolato e impostato con la risposta al paccehtto di richiesta */
     if (timeout == 0.0){
         gettimeofday(&start, NULL);
         it_val.it_value.tv_sec = 1;

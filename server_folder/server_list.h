@@ -70,7 +70,7 @@ int listFiles(int sockfd, struct sockaddr_in cli_addr, socklen_t cl_addr_len, ch
         /* utilizzato per calcolare l'RTT */
         struct timeval stop, start;
         
-        // parte il timer per non rimanere bloccati se il client è offline
+        /* parte il timer per non rimanere bloccati se il client è offline */
         struct itimerval it_val, stopTimer;
         
         /* se non inserito viene impostato un timeout di 1 secondo per il primo pacchetto
